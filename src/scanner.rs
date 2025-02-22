@@ -98,7 +98,7 @@ impl<'a> Scanner<'a> {
             b'-' => Some(Ok(self.make_tok(Minus, 0))),
             b'*' => Some(Ok(self.make_tok(Star, 0))),
             b'/' => Some(Ok(self.make_tok(Slash, 0))),
-            b'0'..b'9' => {
+            b'0'..=b'9' => {
                 let mut len = 0;
                 while is_num(self.peek()) {
                     _ = self.advance();
