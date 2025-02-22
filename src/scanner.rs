@@ -5,6 +5,8 @@ use crate::error::Error;
 pub enum TokType {
     // Single characters
     Plus, Minus, Star, Slash,
+    // Single or possibly two characters
+    Assign,
     // Variable number of characters
     Number, Identifier,
     // Msc.
@@ -98,6 +100,14 @@ impl<'a> Scanner<'a> {
             b'-' => Some(Ok(self.make_tok(Minus, 0))),
             b'*' => Some(Ok(self.make_tok(Star, 0))),
             b'/' => Some(Ok(self.make_tok(Slash, 0))),
+            b':' => {
+                if self.is_match(b'=') {
+                    let _ = self.advance();
+                    Some(Ok(self.make_tok(Assign, 1)))
+                } else {
+                    Some(Err(self.gen_error(format!("Unexpected character '{}'.", c as char))))
+                }
+            },
             b'0'..=b'9' => {
                 let mut len = 0;
                 while is_num(self.peek()) {
@@ -125,6 +135,14 @@ impl<'a> Scanner<'a> {
             b'\0' => {
                 None
             }
+            b'a'..=b'z' | b'A'..=b'Z' => {
+                let mut len = 0;
+                while (valid_identifier_character(self.peek())) {
+                    len += 1;
+                    _ = self.advance();
+                }
+                Some(Ok(self.make_tok(Identifier, len)))
+            }
             _ => {
                 Some(Err(self.gen_error(format!("Unexpected character '{}'.", c as char))))
             }
@@ -145,3 +163,9 @@ impl<'a> Scanner<'a> {
     }
 }
 
+fn valid_identifier_character(c: u8) -> bool {
+       b'a' <= c && c <= b'z' 
+    || b'A' <= c && c <= b'Z' 
+    || b'0' <= c && c <= b'9' 
+    || c == b'_'
+}

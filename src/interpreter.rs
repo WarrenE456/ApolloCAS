@@ -1,8 +1,11 @@
-use crate::error::Error;
-use crate::line::{Line, Expr, Binary};
-use crate::scanner::{Tok, TokType};
 use std::fmt;
 
+use crate::error::Error;
+use crate::line::*;
+use crate::scanner::{Tok, TokType};
+use crate::environment::Env;
+
+#[derive(Clone)]
 pub enum Val {
     Number(f64),
 }
@@ -21,18 +24,19 @@ impl fmt::Display for Val {
     }
 }
 
-pub struct Interpreter {
+pub struct Interpreter<'a> {
+    env: Env<'a>,
 }
 
-impl Interpreter {
+impl<'a> Interpreter<'a> {
     pub fn new() -> Self {
-        Self {}
+        Self { env: Env::new() }
     }
-    fn literal(&self, tok: Tok) -> Val {
+    fn literal(&self, tok: Tok) -> Result<Val, Error> {
         use TokType::*;
         match tok.t {
-            Number => Val::Number(tok.lexeme_as_str().parse().unwrap()),
-            Identifier => todo!(),
+            Number => Ok(Val::Number(tok.lexeme_as_str().parse().unwrap())),
+            Identifier => self.env.get(&tok),
             _ => unreachable!(),
         }
     }
@@ -50,10 +54,16 @@ impl Interpreter {
             })
         })
     }
+    fn assignment(&self, a: Assignment) -> Result<Val, Error> {
+        let val = self.expr(*a.value)?;
+        self.env.def(a.identifier.lexeme_as_str().to_owned(), val.clone());
+        Ok(val)
+    }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         return match e {
+            Expr::Literal(tok) => self.literal(tok),
             Expr::Binary(b) => self.binary(b),
-            Expr::Literal(tok) => Ok(self.literal(tok)),
+            Expr::Assignment(a) => self.assignment(a),
         };
     }
     pub fn interpret(&self, line: Line) -> Result<Val, Error> {

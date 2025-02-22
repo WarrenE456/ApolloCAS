@@ -14,6 +14,7 @@ pub struct Command {
 pub enum Expr<'a> {
     Literal(Tok<'a>),
     Binary(Binary<'a>),
+    Assignment(Assignment<'a>)
 }
 
 #[derive(Debug)]
@@ -27,4 +28,11 @@ impl<'a> Binary<'a> {
     pub fn new(l: Expr<'a>, op: Tok<'a>, r: Expr<'a>) -> Self {
         Self { l: Box::from(l), op, r: Box::from(r) }
     }
+}
+
+#[derive(Debug)]
+pub struct Assignment<'a> {
+    pub identifier: Tok<'a>,
+    pub op: Tok<'a>,
+    pub value: Box<Expr<'a>>,
 }

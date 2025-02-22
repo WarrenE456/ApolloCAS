@@ -1,10 +1,11 @@
 /* Grammar
-* program -> (line '\n')* line? $
+* program -> '\n'* ((line | $) '\n'+)+
 * line -> (expr | command)
-* expr -> term
+* expr -> assignment
+* assignment -> IDENTIFIER '=' assignment | term
 * term -> factor (('+' | '-') factor)*
 * factor -> primary (('*' | '/') primary)*
-* primary -> NUMBER
+* primary -> NUMBER | IDENTIFIER
 * command -> ":" command arg*
 */
 
@@ -60,7 +61,7 @@ impl<'a> Parser<'a> {
             Err(Error { msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end})
         }
     }
-    // primary -> NUMBER
+    // primary -> NUMBER | IDENTIFIER
     fn primary(&self) -> Result<Expr, Error> {
         let tok = self.peek();
         let lexeme = if tok.lexeme.get(0).is_some() && tok.lexeme[0] == b'\n' {
@@ -69,7 +70,7 @@ impl<'a> Parser<'a> {
             format!("'{}'", std::str::from_utf8(tok.lexeme).unwrap())
         };
         self.expect_n(
-            &[TokType::Number],
+            &[TokType::Number, TokType::Identifier],
             format!("Expected a number or variable, instead found {}.", lexeme)
         )?;
         Ok(Expr::Literal(self.advance().clone()))
@@ -94,9 +95,32 @@ impl<'a> Parser<'a> {
         }
         Ok(expr)
     }
+    // assignment -> IDENTIFIER '=' assignment | term
+    fn assignment(&self) -> Result<Expr, Error> {
+        let mut expr = self.term()?;
+        if self.is_match(TokType::Assign) {
+            let op = self.advance().clone();
+            let identifier = match expr {
+                Expr::Literal(tok) => {
+                    if tok.t != TokType::Identifier {
+                        let msg = format!("Attempt to define non-variable '{}' as value.", std::str::from_utf8(tok.lexeme).unwrap());
+                        return Err(Error { msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end });
+                    }
+                    tok
+                }
+                _ => {
+                        let msg = String::from("Attempt to define non-variable as value.");
+                        return Err(Error { msg, line: op.line, col_start: op.col_start, col_end: op.col_end });
+                }
+            };
+            let value = self.assignment()?;
+            expr = Expr::Assignment(Assignment { identifier, op, value: Box::new(value) });
+        }
+        Ok(expr)
+    }
     // expr -> term
     fn expr(&self) -> Result<Expr, Error> {
-        self.term()
+        self.assignment()
     }
     // TODO: command
     // line -> (expr | command)
