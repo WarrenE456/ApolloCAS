@@ -40,7 +40,7 @@ impl<'a> Parser<'a> {
     fn expect(&self, t: TokType, msg: String) -> Result<(), Error> {
         let tok = self.peek();
         if tok.t != t {
-            Err(Error { msg, line: tok.line, col: tok.col})
+            Err(Error { msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end})
         } else{
             Ok(())
         }
@@ -57,14 +57,20 @@ impl<'a> Parser<'a> {
         if is_match {
             Ok(())
         } else {
-            Err(Error { msg, line: tok.line, col: tok.col})
+            Err(Error { msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end})
         }
     }
     // primary -> NUMBER
     fn primary(&self) -> Result<Expr, Error> {
+        let tok = self.peek();
+        let lexeme = if tok.lexeme.get(0).is_some() && tok.lexeme[0] == b'\n' {
+            String::from("end of line")
+        } else {
+            format!("'{}'", std::str::from_utf8(tok.lexeme).unwrap())
+        };
         self.expect_n(
             &[TokType::Number],
-            format!("Expected a number or variable, instead found '{}'.", self.peek().lexeme_as_str())
+            format!("Expected a number or variable, instead found {}.", lexeme)
         )?;
         Ok(Expr::Literal(self.advance().clone()))
     }

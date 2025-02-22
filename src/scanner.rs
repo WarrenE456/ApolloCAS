@@ -16,7 +16,8 @@ pub enum TokType {
 pub struct Tok<'a> {
     pub lexeme: &'a [u8],
     pub line: usize,
-    pub col: usize,
+    pub col_start: usize,
+    pub col_end: usize,
     pub t: TokType,
 }
 
@@ -29,7 +30,7 @@ impl<'a> Tok<'a> {
 use std::fmt;
 impl<'a> fmt::Debug for Tok<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Tok {{ ({},{}) '{}' {:?} }}", self.line, self.col, self.lexeme_as_str(), self.t)
+        write!(f, "Tok {{ ({},{}-{}) '{}' {:?} }}", self.line, self.col_start, self.col_end, self.lexeme_as_str(), self.t)
     }
 }
 
@@ -81,40 +82,45 @@ impl<'a> Scanner<'a> {
             false
         }
     }
-    fn make_tok(&self, t: TokType) -> Tok {
+    fn make_tok(&self, t: TokType, len: usize) -> Tok {
         let lexeme = &self.program[self.p_pos.get()..self.pos.get()];
-        Tok { lexeme, line: self.line.get(), col: self.col.get(), t }
+        Tok { lexeme, line: self.line.get(), col_end: self.col.get(), col_start: self.col.get() - len, t }
     }
     fn gen_error(&self, msg: String) -> Error {
-        Error { msg, line: self.line.get(), col: self.col.get()}
+        Error { msg, line: self.line.get(), col_start: self.col.get(), col_end: self.col.get()}
     }
     fn get_next_tok(&self) -> Option<Result<Tok, Error>> {
         use TokType::*;
         self.p_pos.set(self.pos.get());
         let c = self.advance();
         match c {
-            b'+' => Some(Ok(self.make_tok(Plus))),
-            b'-' => Some(Ok(self.make_tok(Minus))),
-            b'*' => Some(Ok(self.make_tok(Star))),
-            b'/' => Some(Ok(self.make_tok(Slash))),
+            b'+' => Some(Ok(self.make_tok(Plus, 0))),
+            b'-' => Some(Ok(self.make_tok(Minus, 0))),
+            b'*' => Some(Ok(self.make_tok(Star, 0))),
+            b'/' => Some(Ok(self.make_tok(Slash, 0))),
             b'0'..b'9' => {
+                let mut len = 0;
                 while is_num(self.peek()) {
                     _ = self.advance();
+                    len += 1;
                 }
                 if self.is_match(b'.') {
+                    len += 1;
                     while is_num(self.peek()) {
                         _ = self.advance();
+                        len += 1;
                     }
                 }
-                Some(Ok(self.make_tok(Number)))
+                Some(Ok(self.make_tok(Number, len)))
             }
             b' ' | b'\r' | b'\t' => {
                 self.get_next_tok()
             }
             b'\n' => {
+                let tok = Some(Ok(self.make_tok(NewLine, 0)));
                 self.line.set(self.line.get() + 1);
                 self.col.set(0);
-                Some(Ok(self.make_tok(NewLine)))
+                tok
             }
             b'\0' => {
                 None
@@ -134,7 +140,7 @@ impl<'a> Scanner<'a> {
             }
         }
         self.p_pos.set(self.pos.get() );
-        toks.push(self.make_tok(TokType::EOF));
+        toks.push(self.make_tok(TokType::EOF, 0));
         Ok(toks)
     }
 }

@@ -65,10 +65,10 @@ impl Interpreter {
     }
 }
 
-fn devide(x: f64, y: f64, tok: &Tok) -> Result<f64, Error> {
+fn devide(x: f64, y: f64, op: &Tok) -> Result<f64, Error> {
     return if y == 0.0 {
         let msg = String::from("Attempt to devide by zero.");
-        Err(Error { msg, line: tok.line, col: tok.col })
+        Err(Error { msg, line: op.line, col_start: op.col_start, col_end: op.col_end })
     } else {
         Ok(x / y)
     };
