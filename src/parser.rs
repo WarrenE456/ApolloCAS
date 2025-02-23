@@ -4,7 +4,8 @@
 * assignment -> "let" IDENTIFIER ':=' expr
 * expr -> term
 * term -> factor (('+' | '-') factor)*
-* factor -> group (('*' | '/') group)*
+* factor -> unary (('*' | '/') unary)*
+* negate -> '-'? group
 * group -> "(" expr ")" | primary
 * primary -> NUMBER | IDENTIFIER
 * command -> ":" command arg*
@@ -88,12 +89,21 @@ impl<'a> Parser<'a> {
             self.primary()
         }
     }
-    // factor -> group (('*' | '/') group)*
+    // negate -> '-'? group
+    fn negate(&self) -> Result<Expr, Error> {
+        if self.is_match(TokType::Minus) {
+            let minus = self.advance().clone();
+            self.group().map(|e| Expr::Negate(Negate{ minus, value: Box::new(e) }))
+        } else {
+            self.group()
+        }
+    }
+    // factor -> negate (('*' | '/') negate)*
     fn factor(&self) -> Result<Expr, Error> {
-        let mut expr = self.group()?;
+        let mut expr = self.negate()?;
         while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
             let op = (*self.advance()).clone();
-            let right = self.group()?;
+            let right = self.negate()?;
             expr = Expr::Binary(Binary::new(expr, op, right));
         }
         Ok(expr)

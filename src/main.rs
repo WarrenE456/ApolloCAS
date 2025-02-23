@@ -8,7 +8,7 @@ pub mod environment;
 
 use apollo::Apollo;
 
-// TODO groups, negation, and exponents
+// TODO exponents
 
 fn main() {
     Apollo::run();

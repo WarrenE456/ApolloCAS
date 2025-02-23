@@ -54,16 +54,24 @@ impl<'a> Interpreter<'a> {
             })
         })
     }
-    fn assignment(&self, a: Assignment) -> Result<Val, Error> {
-        let val = self.expr(a.value)?;
-        self.env.def(a.identifier.lexeme_as_str().to_owned(), val.clone());
-        Ok(val)
+    fn negate(&self, n: Negate) -> Result<Val, Error> {
+        match self.expr(*n.value)? {
+            Val::Number(n) => {
+                Ok(Val::Number(-1.0 * n))
+            }
+        }
     }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         return match e {
             Expr::Literal(tok) => self.literal(tok),
             Expr::Binary(b) => self.binary(b),
+            Expr::Negate(n) => self.negate(n),
         };
+    }
+    fn assignment(&self, a: Assignment) -> Result<Val, Error> {
+        let val = self.expr(a.value)?;
+        self.env.def(a.identifier.lexeme_as_str().to_owned(), val.clone());
+        Ok(val)
     }
     pub fn interpret(&self, line: Statement) -> Result<Val, Error> {
         use Statement::*;

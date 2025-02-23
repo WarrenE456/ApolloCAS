@@ -15,6 +15,7 @@ pub struct Command {
 pub enum Expr<'a> {
     Literal(Tok<'a>),
     Binary(Binary<'a>),
+    Negate(Negate<'a>),
 }
 
 #[derive(Debug)]
@@ -31,8 +32,15 @@ impl<'a> Binary<'a> {
 }
 
 #[derive(Debug)]
+pub struct Negate<'a> {
+    pub minus: Tok<'a>,
+    pub value: Box<Expr<'a>>
+}
+
+#[derive(Debug)]
 pub struct Assignment<'a> {
     pub identifier: Tok<'a>,
     pub op: Tok<'a>,
     pub value: Expr<'a>,
 }
+
