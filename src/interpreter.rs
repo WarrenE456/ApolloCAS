@@ -50,6 +50,8 @@ impl<'a> Interpreter<'a> {
                 Minus => x - y,
                 Star => x * y,
                 Slash => devide(x, y, &b.op)?,
+                // TODO optimize
+                Carrot => x.powf(y),
                 _ => unreachable!(),
             })
         })

@@ -4,7 +4,8 @@
 * assignment -> "let" IDENTIFIER ':=' expr
 * expr -> term
 * term -> factor (('+' | '-') factor)*
-* factor -> unary (('*' | '/') unary)*
+* factor -> expo (('*' | '/') expo)*
+* expo -> negate ('^' expo)?
 * negate -> '-'? group
 * group -> "(" expr ")" | primary
 * primary -> NUMBER | IDENTIFIER
@@ -98,12 +99,22 @@ impl<'a> Parser<'a> {
             self.group()
         }
     }
-    // factor -> negate (('*' | '/') negate)*
-    fn factor(&self) -> Result<Expr, Error> {
+    // expo -> negate ('^' expo)?
+    fn expo(&self) -> Result<Expr, Error> {
         let mut expr = self.negate()?;
+        if self.is_match(TokType::Carrot) {
+            let op = self.advance().clone();
+            let r = Box::new(self.expo()?);
+            expr = Expr::Binary(Binary { l: Box::new(expr), op, r });
+        }
+        Ok(expr)
+    }
+    // factor -> expo (('*' | '/') expo)*
+    fn factor(&self) -> Result<Expr, Error> {
+        let mut expr = self.expo()?;
         while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
             let op = (*self.advance()).clone();
-            let right = self.negate()?;
+            let right = self.expo()?;
             expr = Expr::Binary(Binary::new(expr, op, right));
         }
         Ok(expr)

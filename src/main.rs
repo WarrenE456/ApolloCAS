@@ -8,8 +8,6 @@ pub mod environment;
 
 use apollo::Apollo;
 
-// TODO exponents
-
 fn main() {
     Apollo::run();
 }

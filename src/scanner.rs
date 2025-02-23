@@ -6,7 +6,7 @@ use crate::error::Error;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokType {
     // Single characters
-    Plus, Minus, Star, Slash, LPAREN, RPAREN,
+    Plus, Minus, Star, Slash, LPAREN, RPAREN, Carrot,
     // Single or multiple characters
     Assign, Let,
     // Variable number of characters
@@ -109,6 +109,7 @@ impl<'a> Scanner<'a> {
             b'/' => Some(Ok(self.make_tok(Slash, 0))),
             b'(' => Some(Ok(self.make_tok(LPAREN, 0))),
             b')' => Some(Ok(self.make_tok(RPAREN, 0))),
+            b'^' => Some(Ok(self.make_tok(Carrot, 0))),
             b':' => {
                 if self.is_match(b'=') {
                     let _ = self.advance();
