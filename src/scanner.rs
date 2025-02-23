@@ -1,12 +1,14 @@
 use std::cell::Cell;
+use std::collections::HashMap;
+
 use crate::error::Error;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokType {
     // Single characters
     Plus, Minus, Star, Slash, LPAREN, RPAREN,
-    // Single or possibly two characters
-    Assign,
+    // Single or multiple characters
+    Assign, Let,
     // Variable number of characters
     Number, Identifier,
     // Msc.
@@ -46,16 +48,21 @@ pub struct Scanner<'a> {
     line: Cell<usize>,
     col: Cell<usize>,
     program: &'a [u8],
+    keywords: HashMap<String, TokType>,
 }
 
 impl<'a> Scanner<'a> {
     pub fn new(program: &'a [u8]) -> Self {
+        let keywords = HashMap::from([
+            (String::from("let"), TokType::Let)
+        ]);
         Scanner {
             program,
             pos: Cell::new(0),
             p_pos: Cell::new(0),
             line: Cell::new(1),
             col: Cell::new(0),
+            keywords
         }
     }
     fn advance(&self) -> u8 {
@@ -139,11 +146,15 @@ impl<'a> Scanner<'a> {
             }
             b'a'..=b'z' | b'A'..=b'Z' => {
                 let mut len = 0;
-                while (valid_identifier_character(self.peek())) {
+                while valid_identifier_character(self.peek()) {
                     len += 1;
                     _ = self.advance();
                 }
-                Some(Ok(self.make_tok(Identifier, len)))
+                let mut tok = self.make_tok(Identifier, len);
+                if let Some(t) = self.keywords.get(tok.lexeme_as_str()) {
+                    tok.t = t.clone();
+                }
+                Some(Ok(tok))
             }
             _ => {
                 Some(Err(self.gen_error(format!("Unexpected character '{}'.", c as char))))

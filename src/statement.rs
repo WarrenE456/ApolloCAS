@@ -1,8 +1,9 @@
 use crate::scanner::Tok;
 
 #[derive(Debug)]
-pub enum Line<'a> {
+pub enum Statement<'a> {
     Command(Command),
+    Assignment(Assignment<'a>),
     Expr(Expr<'a>),
 }
 
@@ -14,7 +15,6 @@ pub struct Command {
 pub enum Expr<'a> {
     Literal(Tok<'a>),
     Binary(Binary<'a>),
-    Assignment(Assignment<'a>)
 }
 
 #[derive(Debug)]
@@ -34,5 +34,5 @@ impl<'a> Binary<'a> {
 pub struct Assignment<'a> {
     pub identifier: Tok<'a>,
     pub op: Tok<'a>,
-    pub value: Box<Expr<'a>>,
+    pub value: Expr<'a>,
 }

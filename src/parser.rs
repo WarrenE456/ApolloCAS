@@ -1,8 +1,8 @@
 /* Grammar
-* program -> '\n'* ((line | $) '\n'+)+
-* line -> (expr | command)
-* expr -> assignment
-* assignment -> IDENTIFIER '=' assignment | term
+* program -> '\n'* ((statement | $) '\n'+)+
+* statement -> (expr | command | assignment)
+* assignment -> "let" IDENTIFIER ':=' expr
+* expr -> term
 * term -> factor (('+' | '-') factor)*
 * factor -> group (('*' | '/') group)*
 * group -> "(" expr ")" | primary
@@ -13,7 +13,7 @@
 use std::cell::Cell;
 
 use crate::scanner::{Tok, TokType};
-use crate::line::*;
+use crate::statement::*;
 use crate::error::Error;
 
 pub struct Parser<'a> {
@@ -108,37 +108,28 @@ impl<'a> Parser<'a> {
         }
         Ok(expr)
     }
-    // assignment -> IDENTIFIER '=' assignment | term
-    fn assignment(&self) -> Result<Expr, Error> {
-        let mut expr = self.term()?;
-        if self.is_match(TokType::Assign) {
-            let op = self.advance().clone();
-            let identifier = match expr {
-                Expr::Literal(tok) => {
-                    if tok.t != TokType::Identifier {
-                        let msg = format!("Attempt to define non-variable '{}' as value.", std::str::from_utf8(tok.lexeme).unwrap());
-                        return Err(Error { msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end });
-                    }
-                    tok
-                }
-                _ => {
-                        let msg = String::from("Attempt to define non-variable as value.");
-                        return Err(Error { msg, line: op.line, col_start: op.col_start, col_end: op.col_end });
-                }
-            };
-            let value = self.assignment()?;
-            expr = Expr::Assignment(Assignment { identifier, op, value: Box::new(value) });
-        }
-        Ok(expr)
-    }
     // expr -> term
     fn expr(&self) -> Result<Expr, Error> {
-        self.assignment()
+        self.term()
+    }
+    // assignment -> "let" IDENTIFIER ':=' expr
+    fn assignment(&self) -> Result<Assignment, Error> {
+        assert_eq!(self.advance().t, TokType::Let);
+        self.expect(TokType::Identifier, String::from("Expected a variable name here."))?;
+        let identifier = self.advance().clone();
+        self.expect(TokType::Assign, String::from("Expected the assignment operator ':=' after the variable name."))?;
+        let op = self.advance().clone();
+        let value = self.expr()?;
+        Ok(Assignment { identifier, op, value })
     }
     // TODO: command
-    // line -> (expr | command)
-    fn line(&self) -> Result<Line, Error> {
-        self.expr().map(|expr| Line::Expr(expr))
+    // statement -> (expr | command | assignment)
+    fn statement(&self) -> Result<Statement, Error> {
+        if self.is_match(TokType::Let) {
+            self.assignment().map(|a| Statement::Assignment(a))
+        } else {
+            self.expr().map(|e| Statement::Expr(e))
+        }
     }
     fn skip_new_lines(&self) {
         while self.is_match(TokType::NewLine) {
@@ -146,19 +137,19 @@ impl<'a> Parser<'a> {
         }
     }
     // '\n'* line '\n'*
-    pub fn parse_line(&self) -> Result<Line, Error> {
+    pub fn parse_line(&self) -> Result<Statement, Error> {
         self.skip_new_lines();
-        let line = self.line()?;
+        let line = self.statement()?;
         self.skip_new_lines();
-        self.expect(TokType::EOF, String::from("expected end of line."))?;
+        self.expect(TokType::EOF, String::from("expected new line."))?;
         Ok(line)
     }
     // program -> '\n'* ((line | $) '\n'+)+
-    pub fn parse(&self) -> Result<Vec<Line>, Error> {
-        let mut lines= Vec::<Line>::new();
+    pub fn parse(&self) -> Result<Vec<Statement>, Error> {
+        let mut lines= Vec::<Statement>::new();
         self.skip_new_lines();
         while !self.is_match(TokType::EOF) {
-            lines.push(self.line()?);
+            lines.push(self.statement()?);
             self.expect(TokType::NewLine, String::from("expected a new line."))?;
             self.skip_new_lines();
         }

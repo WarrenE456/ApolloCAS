@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::error::Error;
-use crate::line::*;
+use crate::statement::*;
 use crate::scanner::{Tok, TokType};
 use crate::environment::Env;
 
@@ -55,7 +55,7 @@ impl<'a> Interpreter<'a> {
         })
     }
     fn assignment(&self, a: Assignment) -> Result<Val, Error> {
-        let val = self.expr(*a.value)?;
+        let val = self.expr(a.value)?;
         self.env.def(a.identifier.lexeme_as_str().to_owned(), val.clone());
         Ok(val)
     }
@@ -63,13 +63,13 @@ impl<'a> Interpreter<'a> {
         return match e {
             Expr::Literal(tok) => self.literal(tok),
             Expr::Binary(b) => self.binary(b),
-            Expr::Assignment(a) => self.assignment(a),
         };
     }
-    pub fn interpret(&self, line: Line) -> Result<Val, Error> {
-        use Line::*;
+    pub fn interpret(&self, line: Statement) -> Result<Val, Error> {
+        use Statement::*;
         return match line {
             Expr(e) => self.expr(e),
+            Assignment(a) => self.assignment(a),
             Command(_) => todo!(),
         };
     }
