@@ -4,7 +4,8 @@
 * expr -> assignment
 * assignment -> IDENTIFIER '=' assignment | term
 * term -> factor (('+' | '-') factor)*
-* factor -> primary (('*' | '/') primary)*
+* factor -> group (('*' | '/') group)*
+* group -> "(" expr ")" | primary
 * primary -> NUMBER | IDENTIFIER
 * command -> ":" command arg*
 */
@@ -75,12 +76,24 @@ impl<'a> Parser<'a> {
         )?;
         Ok(Expr::Literal(self.advance().clone()))
     }
-    // factor -> primary (('*' | '/') primary)*
+    // group -> "(" expr ")" | primary
+    fn group(&self) -> Result<Expr, Error> {
+        if self.is_match(TokType::LPAREN) {
+            let _ = self.advance();
+            let expr = self.expr()?;
+            self.expect(TokType::RPAREN, String::from("Expected a closing parentheses"))?;
+            let _ = self.advance();
+            Ok(expr)
+        } else {
+            self.primary()
+        }
+    }
+    // factor -> group (('*' | '/') group)*
     fn factor(&self) -> Result<Expr, Error> {
-        let mut expr = self.primary()?;
+        let mut expr = self.group()?;
         while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
             let op = (*self.advance()).clone();
-            let right = self.primary()?;
+            let right = self.group()?;
             expr = Expr::Binary(Binary::new(expr, op, right));
         }
         Ok(expr)
