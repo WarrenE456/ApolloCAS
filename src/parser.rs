@@ -138,7 +138,7 @@ impl<'a> Parser<'a> {
         assert_eq!(self.advance().t, TokType::Let);
         self.expect(TokType::Identifier, String::from("Expected a variable name here."))?;
         let identifier = self.advance().clone();
-        self.expect(TokType::Assign, String::from("Expected the assignment operator ':=' after the variable name."))?;
+        self.expect(TokType::Equal, String::from("Expected the assignment operator ':=' after the variable name."))?;
         let op = self.advance().clone();
         let value = self.expr()?;
         Ok(Assignment { identifier, op, value })
