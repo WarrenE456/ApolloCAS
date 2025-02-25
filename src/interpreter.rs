@@ -8,12 +8,14 @@ use crate::environment::Env;
 #[derive(Clone)]
 pub enum Val {
     Number(f64),
+    Function(Vec<String>, Expr),
 }
 
 impl Val {
     pub fn as_string(&self) -> String {
         match self {
             Self::Number(n) => format!("{}", n),
+            Self::Function(..) => todo!(),
         }
     }
 }
@@ -35,7 +37,7 @@ impl<'a> Interpreter<'a> {
     fn literal(&self, tok: Tok) -> Result<Val, Error> {
         use TokType::*;
         match tok.t {
-            Number => Ok(Val::Number(tok.lexeme_as_str().parse().unwrap())),
+            Number => Ok(Val::Number(tok.lexeme.parse().unwrap())),
             Identifier => self.env.get(&tok),
             _ => unreachable!(),
         }
@@ -53,7 +55,8 @@ impl<'a> Interpreter<'a> {
                 // TODO optimize
                 Carrot => x.powf(y),
                 _ => unreachable!(),
-            })
+            }),
+            _ => todo!(),
         })
     }
     fn negate(&self, n: Negate) -> Result<Val, Error> {
@@ -61,6 +64,7 @@ impl<'a> Interpreter<'a> {
             Val::Number(n) => {
                 Ok(Val::Number(-1.0 * n))
             }
+            _ => todo!()
         }
     }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
@@ -70,16 +74,24 @@ impl<'a> Interpreter<'a> {
             Expr::Negate(n) => self.negate(n),
         };
     }
-    fn assignment(&self, a: Assignment) -> Result<Val, Error> {
+    fn var(&self, a: Var) -> Result<(), Error> {
         let val = self.expr(a.value)?;
-        self.env.def(a.identifier.lexeme_as_str().to_owned(), val.clone());
-        Ok(val)
+        self.env.def(a.identifier.lexeme, val.clone());
+        Ok(())
     }
-    pub fn interpret(&self, line: Statement) -> Result<Val, Error> {
+    fn def(&self, d: Def) -> Result<(), Error> {
+        self.env.def(
+            d.identifier.lexeme,
+            Val::Function(d.args, d.value),
+        );
+        Ok(())
+    }
+    pub fn interpret(&self, stmt: Statement) -> Result<Option<Val>, Error> {
         use Statement::*;
-        return match line {
-            Expr(e) => self.expr(e),
-            Assignment(a) => self.assignment(a),
+        return match stmt {
+            Expr(e) => self.expr(e).map(|e| Some(e)),
+            Var(a) => {self.var(a)?; Ok(None)},
+            Def(d) => {self.def(d)?; Ok(None)},
             Command(_) => todo!(),
         };
     }

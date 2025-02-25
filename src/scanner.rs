@@ -6,9 +6,9 @@ use crate::error::Error;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokType {
     // Single characters
-    Plus, Minus, Star, Slash, LPAREN, RPAREN, Carrot,
-    // Single or multiple characters
-    Equal, Let,
+    Plus, Minus, Star, Slash, LParen, RParen, Carrot, Equal, Comma,
+    // Fixed number of characters
+    Let, Def,
     // Variable number of characters
     Number, Identifier,
     // Msc.
@@ -17,24 +17,18 @@ pub enum TokType {
 
 // TODO: start col and end call
 #[derive(PartialEq, Eq, Clone)]
-pub struct Tok<'a> {
-    pub lexeme: &'a [u8],
+pub struct Tok {
+    pub lexeme: String,
     pub line: usize,
     pub col_start: usize,
     pub col_end: usize,
     pub t: TokType,
 }
 
-impl<'a> Tok<'a> {
-    pub fn lexeme_as_str(&self) -> &str {
-        std::str::from_utf8(self.lexeme).unwrap()
-    }
-}
-
 use std::fmt;
-impl<'a> fmt::Debug for Tok<'a> {
+impl fmt::Debug for Tok {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Tok {{ ({},{}-{}) '{}' {:?} }}", self.line, self.col_start, self.col_end, self.lexeme_as_str(), self.t)
+        write!(f, "Tok {{ ({},{}-{}) '{}' {:?} }}", self.line, self.col_start, self.col_end, &self.lexeme, self.t)
     }
 }
 
@@ -54,7 +48,8 @@ pub struct Scanner<'a> {
 impl<'a> Scanner<'a> {
     pub fn new(program: &'a [u8]) -> Self {
         let keywords = HashMap::from([
-            (String::from("let"), TokType::Let)
+            (String::from("let"), TokType::Let),
+            (String::from("def"), TokType::Def),
         ]);
         Scanner {
             program,
@@ -92,7 +87,9 @@ impl<'a> Scanner<'a> {
         }
     }
     fn make_tok(&self, t: TokType, len: usize) -> Tok {
-        let lexeme = &self.program[self.p_pos.get()..self.pos.get()];
+        let lexeme = std::str::from_utf8(&self.program[self.p_pos.get()..self.pos.get()])
+            .unwrap()
+            .to_owned();
         Tok { lexeme, line: self.line.get(), col_end: self.col.get(), col_start: self.col.get() - len, t }
     }
     fn gen_error(&self, msg: String) -> Error {
@@ -108,9 +105,10 @@ impl<'a> Scanner<'a> {
             b'*' => Some(Ok(self.make_tok(Star, 0))),
             b'/' => Some(Ok(self.make_tok(Slash, 0))),
             b'=' => Some(Ok(self.make_tok(Equal, 0))),
-            b'(' => Some(Ok(self.make_tok(LPAREN, 0))),
-            b')' => Some(Ok(self.make_tok(RPAREN, 0))),
+            b'(' => Some(Ok(self.make_tok(LParen, 0))),
+            b')' => Some(Ok(self.make_tok(RParen, 0))),
             b'^' => Some(Ok(self.make_tok(Carrot, 0))),
+            b',' => Some(Ok(self.make_tok(Comma, 0))),
             b'0'..=b'9' => {
                 let mut len = 0;
                 while is_num(self.peek()) {
@@ -145,7 +143,7 @@ impl<'a> Scanner<'a> {
                     _ = self.advance();
                 }
                 let mut tok = self.make_tok(Identifier, len);
-                if let Some(t) = self.keywords.get(tok.lexeme_as_str()) {
+                if let Some(t) = self.keywords.get(&tok.lexeme) {
                     tok.t = t.clone();
                 }
                 Some(Ok(tok))

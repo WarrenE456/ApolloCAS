@@ -18,7 +18,7 @@ impl<'a> Env<'a> {
         self.mp.borrow_mut().insert(identifier, val);
     }
     pub fn get(&self, tok: &Tok) -> Result<Val, Error> {
-        let identifier = tok.lexeme_as_str().to_owned();
+        let identifier = tok.lexeme.to_owned();
         self.mp.borrow().get(&identifier).ok_or(Error{
             msg: format!("Use of undefined variable '{}'.", identifier),
             line: tok.line, col_end: tok.col_end, col_start: tok.col_start,

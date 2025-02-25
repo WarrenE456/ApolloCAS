@@ -40,7 +40,9 @@ impl Apollo {
             let line = handle_error!(parser.parse_line(), lines);
             
             let val = handle_error!(interpreter.interpret(line), lines);
-            println!("{}", val);
+            if let Some(val) = val {
+                println!("{}", val);
+            }
         }
     }
     fn run_file(args: Vec<String>) {

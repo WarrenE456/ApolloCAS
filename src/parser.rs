@@ -1,15 +1,16 @@
 /* Grammar
 * program -> '\n'* ((statement | $) '\n'+)+
-* statement -> (expr | command | assignment)
-* assignment -> "let" IDENTIFIER ':=' expr
+* statement -> (expr | command | var | def)
+* var -> 'let' IDENTIFIER '=' expr
+* def -> 'def' IDENTIFIER '(' IDENTIFIER (',' IDENTIFIER)* ')' '=' expr
 * expr -> term
 * term -> factor (('+' | '-') factor)*
 * factor -> expo (('*' | '/') expo)*
 * expo -> negate ('^' expo)?
 * negate -> '-'? group
-* group -> "(" expr ")" | primary
+* group -> '(' expr ')' | primary
 * primary -> NUMBER | IDENTIFIER
-* command -> ":" command arg*
+* command -> ':' command arg*
 */
 
 use std::cell::Cell;
@@ -18,22 +19,22 @@ use crate::scanner::{Tok, TokType};
 use crate::statement::*;
 use crate::error::Error;
 
-pub struct Parser<'a> {
-    toks: Vec<Tok<'a>>,
+pub struct Parser {
+    toks: Vec<Tok>,
     cur: Cell<usize>
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(toks: Vec<Tok<'a>>) -> Self {
+impl Parser {
+    pub fn new(toks: Vec<Tok>) -> Self {
         Self { toks, cur: Cell::new(0) }
     }
-    fn peek(&self) -> &Tok<'a> {
+    fn peek(&self) -> &Tok {
         &self.toks[self.cur.get()]
     }
     fn is_match(&self, t: TokType) -> bool {
         self.peek().t == t
     }
-    fn advance(&self) -> &Tok<'a> {
+    fn advance(&self) -> &Tok {
         let cur = self.cur.get();
         let tok = &self.toks[cur];
         if cur < self.toks.len() - 1 {
@@ -67,10 +68,10 @@ impl<'a> Parser<'a> {
     // primary -> NUMBER | IDENTIFIER
     fn primary(&self) -> Result<Expr, Error> {
         let tok = self.peek();
-        let lexeme = if tok.lexeme.get(0).is_some() && tok.lexeme[0] == b'\n' {
+        let lexeme = if tok.lexeme.as_bytes().get(0).map(|c| *c == b'\n').unwrap_or(false) {
             String::from("end of line")
         } else {
-            format!("'{}'", std::str::from_utf8(tok.lexeme).unwrap())
+            format!("'{}'", tok.lexeme)
         };
         self.expect_n(
             &[TokType::Number, TokType::Identifier],
@@ -80,10 +81,10 @@ impl<'a> Parser<'a> {
     }
     // group -> "(" expr ")" | primary
     fn group(&self) -> Result<Expr, Error> {
-        if self.is_match(TokType::LPAREN) {
+        if self.is_match(TokType::LParen) {
             let _ = self.advance();
             let expr = self.expr()?;
-            self.expect(TokType::RPAREN, String::from("Expected a closing parentheses"))?;
+            self.expect(TokType::RParen, String::from("Expected a closing parentheses"))?;
             let _ = self.advance();
             Ok(expr)
         } else {
@@ -133,21 +134,50 @@ impl<'a> Parser<'a> {
     fn expr(&self) -> Result<Expr, Error> {
         self.term()
     }
-    // assignment -> "let" IDENTIFIER ':=' expr
-    fn assignment(&self) -> Result<Assignment, Error> {
+    // var -> "let" IDENTIFIER '=' expr
+    fn var(&self) -> Result<Var, Error> {
         assert_eq!(self.advance().t, TokType::Let);
         self.expect(TokType::Identifier, String::from("Expected a variable name here."))?;
         let identifier = self.advance().clone();
-        self.expect(TokType::Equal, String::from("Expected the assignment operator ':=' after the variable name."))?;
+        self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
         let op = self.advance().clone();
         let value = self.expr()?;
-        Ok(Assignment { identifier, op, value })
+        Ok(Var { identifier, op, value })
+    }
+    // def -> 'def' IDENTIFIER '(' IDENTIFIER (',' IDENTIFIER)* ')' '=' expr
+    fn def(&self) -> Result<Def, Error> {
+        assert_eq!(self.advance().t, TokType::Def);
+        self.expect(TokType::Identifier, String::from("Expected a function name here."))?;
+        let identifier = self.advance().clone();
+
+        self.expect(TokType::LParen, String::from("Expected a parentheses before argument list."))?;
+        let _ = self.advance();
+
+        let mut args = Vec::new();
+        self.expect(TokType::Identifier, String::from("Expected an argument here."))?;
+        args.push(self.advance().lexeme.clone());
+
+        while self.is_match(TokType::Comma) {
+            let _ = self.advance();
+            self.expect(TokType::Identifier, String::from("Expected an argument to follow the comma."))?;
+            args.push(self.advance().lexeme.clone());
+        }
+
+        self.expect(TokType::RParen, String::from("Expected a closing parentheses after arguments."))?;
+        let _ = self.advance();
+
+        self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
+        let op = self.advance().clone();
+
+        Ok(Def { identifier, args, op, value: self.expr()? })
     }
     // TODO: command
-    // statement -> (expr | command | assignment)
+    // statement -> (expr | command | var | def)
     fn statement(&self) -> Result<Statement, Error> {
         if self.is_match(TokType::Let) {
-            self.assignment().map(|a| Statement::Assignment(a))
+            self.var().map(|a| Statement::Var(a))
+        } else if self.is_match(TokType::Def) {
+            self.def().map(|d| Statement::Def(d))
         } else {
             self.expr().map(|e| Statement::Expr(e))
         }

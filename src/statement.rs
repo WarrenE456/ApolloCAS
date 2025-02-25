@@ -1,46 +1,54 @@
 use crate::scanner::Tok;
 
 #[derive(Debug)]
-pub enum Statement<'a> {
+pub enum Statement {
     Command(Command),
-    Assignment(Assignment<'a>),
-    Expr(Expr<'a>),
+    Var(Var),
+    Def(Def),
+    Expr(Expr),
 }
 
 #[derive(Debug)]
 pub struct Command {
 }
 
-#[derive(Debug)]
-pub enum Expr<'a> {
-    Literal(Tok<'a>),
-    Binary(Binary<'a>),
-    Negate(Negate<'a>),
+#[derive(Debug, Clone)]
+pub enum Expr {
+    Literal(Tok),
+    Binary(Binary),
+    Negate(Negate),
 }
 
-#[derive(Debug)]
-pub struct Binary<'a> {
-    pub l: Box<Expr<'a>>,
-    pub op: Tok<'a>,
-    pub r: Box<Expr<'a>>,
+#[derive(Debug, Clone)]
+pub struct Binary {
+    pub l: Box<Expr>,
+    pub op: Tok,
+    pub r: Box<Expr>,
 }
 
-impl<'a> Binary<'a> {
-    pub fn new(l: Expr<'a>, op: Tok<'a>, r: Expr<'a>) -> Self {
+impl Binary {
+    pub fn new(l: Expr, op: Tok, r: Expr) -> Self {
         Self { l: Box::from(l), op, r: Box::from(r) }
     }
 }
 
-#[derive(Debug)]
-pub struct Negate<'a> {
-    pub minus: Tok<'a>,
-    pub value: Box<Expr<'a>>
+#[derive(Debug, Clone)]
+pub struct Negate {
+    pub minus: Tok,
+    pub value: Box<Expr>
 }
 
 #[derive(Debug)]
-pub struct Assignment<'a> {
-    pub identifier: Tok<'a>,
-    pub op: Tok<'a>,
-    pub value: Expr<'a>,
+pub struct Var {
+    pub identifier: Tok,
+    pub op: Tok,
+    pub value: Expr,
 }
 
+#[derive(Debug)]
+pub struct Def {
+    pub identifier: Tok,
+    pub args: Vec<String>,
+    pub op: Tok,
+    pub value: Expr,
+}
