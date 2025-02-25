@@ -1,16 +1,24 @@
 /* Grammar
+*
 * program -> '\n'* ((statement | $) '\n'+)+
+*
 * statement -> (expr | command | var | def)
 * var -> 'let' IDENTIFIER '=' expr
-* def -> 'def' IDENTIFIER '(' IDENTIFIER (',' IDENTIFIER)* ')' '=' expr
+* def -> 'def' IDENTIFIER params_list '=' expr
+*
 * expr -> term
 * term -> factor (('+' | '-') factor)*
 * factor -> expo (('*' | '/') expo)*
 * expo -> negate ('^' expo)?
 * negate -> '-'? group
+* call -> group args_list?
 * group -> '(' expr ')' | primary
 * primary -> NUMBER | IDENTIFIER
+*
 * command -> ':' command arg*
+* 
+* params_list -> '(' IDENTIFIER (',' IDENTIFIER)* ')'
+* args_list -> '(' expr (',' expr )* ')'
 */
 
 use std::cell::Cell;
@@ -86,10 +94,38 @@ impl Parser {
             let expr = self.expr()?;
             self.expect(TokType::RParen, String::from("Expected a closing parentheses"))?;
             let _ = self.advance();
-            Ok(expr)
+            Ok(Expr::Group(Box::new(expr)))
         } else {
             self.primary()
         }
+    }
+    // args_list -> '(' expr (',' expr )* ')'
+    pub fn args_list(&self) -> Result<Vec<Expr>, Error> {
+        self.expect(TokType::LParen, String::from("Expected a parentheses before argument list."))?;
+        let _ = self.advance();
+
+        let mut args = Vec::new();
+        args.push(self.expr()?);
+
+        while self.is_match(TokType::Comma) {
+            let _ = self.advance();
+            args.push(self.expr()?);
+        }
+
+        self.expect(TokType::RParen, String::from("Expected a closing parentheses after arguments."))?;
+        let _ = self.advance();
+
+        Ok(args)
+    }
+    // call -> group args_list?
+    pub fn call(&self) -> Result<Expr, Error> {
+        let mut expr = self.group()?;
+        if self.is_match(TokType::LParen) {
+            let _ = self.advance();
+            let args = self.args_list()?;
+            expr = Expr::Call(Call { f: Box::new(expr), args, lparen: self.toks[self.cur.get() - 1].clone() }) 
+        }
+        Ok(expr)
     }
     // negate -> '-'? group
     fn negate(&self) -> Result<Expr, Error> {
@@ -144,12 +180,8 @@ impl Parser {
         let value = self.expr()?;
         Ok(Var { identifier, op, value })
     }
-    // def -> 'def' IDENTIFIER '(' IDENTIFIER (',' IDENTIFIER)* ')' '=' expr
-    fn def(&self) -> Result<Def, Error> {
-        assert_eq!(self.advance().t, TokType::Def);
-        self.expect(TokType::Identifier, String::from("Expected a function name here."))?;
-        let identifier = self.advance().clone();
-
+    // params_list -> '(' IDENTIFIER (',' IDENTIFIER)* ')'
+    pub fn params_list(&self) -> Result<Vec<String>, Error> {
         self.expect(TokType::LParen, String::from("Expected a parentheses before argument list."))?;
         let _ = self.advance();
 
@@ -165,6 +197,16 @@ impl Parser {
 
         self.expect(TokType::RParen, String::from("Expected a closing parentheses after arguments."))?;
         let _ = self.advance();
+
+        Ok(args)
+    }
+    // def -> 'def' IDENTIFIER params_list '=' expr
+    fn def(&self) -> Result<Def, Error> {
+        assert_eq!(self.advance().t, TokType::Def);
+        self.expect(TokType::Identifier, String::from("Expected a function name here."))?;
+        let identifier = self.advance().clone();
+
+        let args = self.params_list()?;
 
         self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
         let op = self.advance().clone();

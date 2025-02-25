@@ -15,8 +15,23 @@ pub struct Command {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Tok),
+    Group(Box<Expr>),
     Binary(Binary),
     Negate(Negate),
+    Call(Call),
+}
+
+impl Expr {
+    pub fn to_string(&self) -> String {
+        use Expr::*;
+        match self {
+            Literal(l) => l.lexeme.clone(),
+            Group(e) => format!("({})", (*e).to_string()),
+            Binary(b) => format!("{} {} {}", b.l.to_string(), b.op.lexeme.clone(), b.r.to_string()),
+            Negate(n) => format!("-{}", n.value.to_string()),
+            Call(_) => todo!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +51,13 @@ impl Binary {
 pub struct Negate {
     pub minus: Tok,
     pub value: Box<Expr>
+}
+
+#[derive(Debug, Clone)]
+pub struct Call {
+    pub f: Box<Expr>,
+    pub args: Vec<Expr>,
+    pub lparen: Tok,
 }
 
 #[derive(Debug)]

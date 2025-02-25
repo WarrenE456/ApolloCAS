@@ -15,7 +15,7 @@ impl Val {
     pub fn as_string(&self) -> String {
         match self {
             Self::Number(n) => format!("{}", n),
-            Self::Function(..) => todo!(),
+            Self::Function(_, e) => e.to_string(),
         }
     }
 }
@@ -33,6 +33,9 @@ pub struct Interpreter<'a> {
 impl<'a> Interpreter<'a> {
     pub fn new() -> Self {
         Self { env: Env::new() }
+    }
+    pub fn from(other: &'a Interpreter) -> Self {
+        Self { env: Env::from(&other.env) }
     }
     fn literal(&self, tok: Tok) -> Result<Val, Error> {
         use TokType::*;
@@ -67,11 +70,25 @@ impl<'a> Interpreter<'a> {
             _ => todo!()
         }
     }
+    fn call(&self, c: Call) -> Result<Val, Error> {
+        let f = self.expr(*c.f)?;
+        if let Val::Number(_) = f {
+            let col = c.lparen.col_start;
+            let line = c.lparen.line;
+            return Err(
+                Error { msg: format!("Attempt to use function calling notation on a number."), col_start: col, col_end: col, line }
+            );
+        }
+        let scope = Interpreter::from(self);
+        todo!()
+    }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         return match e {
             Expr::Literal(tok) => self.literal(tok),
+            Expr::Group(e) => self.expr(*e),
             Expr::Binary(b) => self.binary(b),
             Expr::Negate(n) => self.negate(n),
+            Expr::Call(c) => self.call(c),
         };
     }
     fn var(&self, a: Var) -> Result<(), Error> {
