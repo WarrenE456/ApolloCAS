@@ -7,7 +7,7 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn display(&self, lines: Vec<&str>) {
+    pub fn display(&self, lines: &Vec<String>) {
         println!("Error on line {}: {}", self.line, self.msg);
         println!("{}", lines[self.line - 1].trim_end());
         if self.col_start == self.col_end {

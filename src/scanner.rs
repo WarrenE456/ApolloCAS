@@ -47,6 +47,9 @@ pub struct Scanner<'a> {
 
 impl<'a> Scanner<'a> {
     pub fn new(program: &'a [u8]) -> Self {
+        Self::from(program, 1)
+    }
+    pub fn from(program: &'a [u8], lines: usize) -> Self {
         let keywords = HashMap::from([
             (String::from("let"), TokType::Let),
             (String::from("def"), TokType::Def),
@@ -55,7 +58,7 @@ impl<'a> Scanner<'a> {
             program,
             pos: Cell::new(0),
             p_pos: Cell::new(0),
-            line: Cell::new(1),
+            line: Cell::new(lines),
             col: Cell::new(0),
             keywords
         }

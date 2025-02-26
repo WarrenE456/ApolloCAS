@@ -26,20 +26,23 @@ impl Apollo {
             }
         }
         let interpreter = Interpreter::new();
+        let mut lines: Vec<String> = Vec::new();
+        let mut line_count = 0;
         loop {
             print!(">\t");
             let _ = stdout().flush();
             let mut line = String::new();
             stdin().read_line(&mut line).unwrap();
-            let lines = vec![line.as_str()];
+            lines.push(line.clone());
+            line_count += 1;
 
-            let scanner = Scanner::new(line.as_bytes());
-            let toks = handle_error!(scanner.scan(), lines);
+            let scanner = Scanner::from(line.as_bytes(), line_count);
+            let toks = handle_error!(scanner.scan(), &lines);
 
             let parser = Parser::new(toks);
-            let line = handle_error!(parser.parse_line(), lines);
+            let statement = handle_error!(parser.parse_line(), &lines);
             
-            let val = handle_error!(interpreter.interpret(line), lines);
+            let val = handle_error!(interpreter.interpret(statement), &lines);
             if let Some(val) = val {
                 println!("{}", val);
             }
@@ -67,18 +70,21 @@ impl Apollo {
             }
         } + "\n";
 
-        let program_lines = program.split("\n").collect::<Vec<_>>();
+        let program_lines = program
+            .split("\n")
+            .map(|s| s.to_owned())
+            .collect::<Vec<_>>();
         let program = program.as_bytes();
 
         let scanner = Scanner::new(program);
-        let toks = handle_error!(scanner.scan(), program_lines);
+        let toks = handle_error!(scanner.scan(), &program_lines);
 
         let parser = Parser::new(toks);
-        let lines = handle_error!(parser.parse(), program_lines);
+        let lines = handle_error!(parser.parse(), &program_lines);
 
         let interpreter = Interpreter::new();
         for line in lines.into_iter() {
-           handle_error!(interpreter.interpret(line), program_lines); 
+           handle_error!(interpreter.interpret(line), &program_lines); 
         }
     }
     pub fn run() {
