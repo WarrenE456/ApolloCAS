@@ -10,7 +10,7 @@
 * term -> factor (('+' | '-') factor)*
 * factor -> expo (('*' | '/') expo)*
 * expo -> negate ('^' expo)?
-* negate -> '-'? group
+* negate -> '-'? call
 * call -> group args_list?
 * group -> '(' expr ')' | primary
 * primary -> NUMBER | IDENTIFIER
@@ -121,19 +121,18 @@ impl Parser {
     pub fn call(&self) -> Result<Expr, Error> {
         let mut expr = self.group()?;
         if self.is_match(TokType::LParen) {
-            let _ = self.advance();
             let args = self.args_list()?;
             expr = Expr::Call(Call { f: Box::new(expr), args, lparen: self.toks[self.cur.get() - 1].clone() }) 
         }
         Ok(expr)
     }
-    // negate -> '-'? group
+    // negate -> '-'? call
     fn negate(&self) -> Result<Expr, Error> {
         if self.is_match(TokType::Minus) {
             let minus = self.advance().clone();
-            self.group().map(|e| Expr::Negate(Negate{ minus, value: Box::new(e) }))
+            self.call().map(|e| Expr::Negate(Negate{ minus, value: Box::new(e) }))
         } else {
-            self.group()
+            self.call()
         }
     }
     // expo -> negate ('^' expo)?

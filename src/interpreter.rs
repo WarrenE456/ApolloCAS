@@ -72,15 +72,30 @@ impl<'a> Interpreter<'a> {
     }
     fn call(&self, c: Call) -> Result<Val, Error> {
         let f = self.expr(*c.f)?;
-        if let Val::Number(_) = f {
-            let col = c.lparen.col_start;
-            let line = c.lparen.line;
-            return Err(
-                Error { msg: format!("Attempt to use function calling notation on a number."), col_start: col, col_end: col, line }
-            );
+        match f {
+            Val::Number(_) => {
+                let col = c.lparen.col_start;
+                let line = c.lparen.line;
+                return Err(
+                    Error { msg: format!("Attempt to use function calling notation on a number."), col_start: col, col_end: col, line }
+                );
+            }
+            Val::Function(params, body) => {
+                if c.args.len() != params.len() {
+                    let col = c.lparen.col_start;
+                    let line = c.lparen.line;
+                    let msg = format!("Attempted to call function that takes {} arguments with {}", params.len(), c.args.len());
+                    return Err(
+                        Error { msg, col_start: col, col_end: col, line }
+                    );
+                }
+                let scope = Interpreter::from(self);
+                for (i, arg) in c.args.into_iter().enumerate() {
+                    scope.env.def(params[i].clone(), self.expr(arg)?);
+                }
+                scope.expr(body)
+            }
         }
-        let scope = Interpreter::from(self);
-        todo!()
     }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         return match e {
