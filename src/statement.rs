@@ -29,7 +29,14 @@ impl Expr {
             Group(e) => format!("({})", (*e).to_string()),
             Binary(b) => format!("{} {} {}", b.l.to_string(), b.op.lexeme.clone(), b.r.to_string()),
             Negate(n) => format!("-{}", n.value.to_string()),
-            Call(_) => todo!(),
+            Call(c) => {
+                let args = c.args
+                    .iter()
+                    .map(|arg| arg.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{}({})", c.identifier.lexeme, args)
+            }
         }
     }
 }

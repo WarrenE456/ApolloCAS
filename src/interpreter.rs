@@ -18,6 +18,12 @@ impl Val {
             Self::Function(_, e) => e.to_string(),
         }
     }
+    pub fn kind_as_string(&self) -> String {
+        match self {
+            Self::Number(_) => String::from("Number"),
+            Self::Function(..) => String::from("Function"),
+        }
+    }
 }
 
 impl fmt::Display for Val {
@@ -59,7 +65,11 @@ impl<'a> Interpreter<'a> {
                 Carrot => x.powf(y),
                 _ => unreachable!(),
             }),
-            _ => todo!(),
+            (x, y) => {
+                let msg = format!("Attempt to use '{}' operator on a {} and {}.", 
+                    b.op.lexeme, x.kind_as_string(), y.kind_as_string());
+                return Err(Error { msg, line: b.op.line, col_start: b.op.col_start, col_end: b.op.col_end });
+            }
         })
     }
     fn negate(&self, n: Negate) -> Result<Val, Error> {
@@ -67,7 +77,12 @@ impl<'a> Interpreter<'a> {
             Val::Number(n) => {
                 Ok(Val::Number(-1.0 * n))
             }
-            _ => todo!()
+            Val::Function(..) => Err(Error {
+                msg: String::from("Attempt to negate a function."),
+                line: n.minus.line,
+                col_end: n.minus.col_end,
+                col_start: n.minus.col_start
+            }),
         }
     }
     fn call(&self, c: Call) -> Result<Val, Error> {
