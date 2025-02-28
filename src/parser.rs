@@ -8,9 +8,9 @@
 *
 * expr -> term
 * term -> factor (('+' | '-') factor)*
-* factor -> expo (('*' | '/') expo)*
-* expo -> negate ('^' expo)?
-* negate -> '-'? group
+* factor -> negate (('*' | '/') negate)*
+* negate -> '-'? expo
+* expo -> group ('^' expo)?
 * group -> '(' expr ')' | primary
 * call -> IDENTIFIER args_list
 * primary -> NUMBER | (IDENTIFIER | call)
@@ -116,18 +116,9 @@ impl Parser {
             self.primary()
         }
     }
-    // negate -> '-'? group
-    fn negate(&self) -> Result<Expr, Error> {
-        if self.is_match(TokType::Minus) {
-            let minus = self.advance().clone();
-            self.group().map(|e| Expr::Negate(Negate{ minus, value: Box::new(e) }))
-        } else {
-            self.group()
-        }
-    }
-    // expo -> negate ('^' expo)?
+    // expo -> group ('^' expo)?
     fn expo(&self) -> Result<Expr, Error> {
-        let mut expr = self.negate()?;
+        let mut expr = self.group()?;
         if self.is_match(TokType::Carrot) {
             let op = self.advance().clone();
             let r = Box::new(self.expo()?);
@@ -135,12 +126,21 @@ impl Parser {
         }
         Ok(expr)
     }
-    // factor -> expo (('*' | '/') expo)*
+    // negate -> '-'? expo
+    fn negate(&self) -> Result<Expr, Error> {
+        if self.is_match(TokType::Minus) {
+            let minus = self.advance().clone();
+            self.expo().map(|e| Expr::Negate(Negate{ minus, value: Box::new(e) }))
+        } else {
+            self.expo()
+        }
+    }
+    // factor -> negate (('*' | '/') negate)*
     fn factor(&self) -> Result<Expr, Error> {
-        let mut expr = self.expo()?;
+        let mut expr = self.negate()?;
         while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
             let op = (*self.advance()).clone();
-            let right = self.expo()?;
+            let right = self.negate()?;
             expr = Expr::Binary(Binary::new(expr, op, right));
         }
         Ok(expr)
