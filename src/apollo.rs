@@ -11,7 +11,6 @@ use crate::interpreter::Interpreter;
 pub struct Apollo {
 }
 
-// TODO: Error handling
 impl Apollo {
     fn repl() {
         macro_rules! handle_error {

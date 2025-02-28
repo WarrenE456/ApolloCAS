@@ -10,10 +10,10 @@
 * term -> factor (('+' | '-') factor)*
 * factor -> expo (('*' | '/') expo)*
 * expo -> negate ('^' expo)?
-* negate -> '-'? call
-* call -> group args_list?
+* negate -> '-'? group
 * group -> '(' expr ')' | primary
-* primary -> NUMBER | IDENTIFIER
+* call -> IDENTIFIER args_list
+* primary -> NUMBER | (IDENTIFIER | call)
 *
 * command -> ':' command arg*
 * 
@@ -58,52 +58,8 @@ impl Parser {
             Ok(())
         }
     }
-    fn expect_n(&self, t: &[TokType], msg: String) -> Result<(), Error> {
-        let tok = self.peek();
-        let mut is_match = false;
-        for t in t.iter() {
-            if tok.t == *t {
-                is_match = true;
-                break;
-            }
-        }
-        if is_match {
-            Ok(())
-        } else {
-            Err(Error { msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end})
-        }
-    }
-    // primary -> NUMBER | IDENTIFIER
-    fn primary(&self) -> Result<Expr, Error> {
-        let tok = self.peek();
-        let lexeme = if tok.lexeme.as_bytes().get(0).map(|c| *c == b'\n').unwrap_or(false) {
-            String::from("end of line")
-        } else {
-            format!("'{}'", tok.lexeme)
-        };
-        self.expect_n(
-            &[TokType::Number, TokType::Identifier],
-            format!("Expected a number or variable, instead found {}.", lexeme)
-        )?;
-        Ok(Expr::Literal(self.advance().clone()))
-    }
-    // group -> "(" expr ")" | primary
-    fn group(&self) -> Result<Expr, Error> {
-        if self.is_match(TokType::LParen) {
-            let _ = self.advance();
-            let expr = self.expr()?;
-            self.expect(TokType::RParen, String::from("Expected a closing parentheses"))?;
-            let _ = self.advance();
-            Ok(Expr::Group(Box::new(expr)))
-        } else {
-            self.primary()
-        }
-    }
     // args_list -> '(' expr (',' expr )* ')'
     pub fn args_list(&self) -> Result<Vec<Expr>, Error> {
-        self.expect(TokType::LParen, String::from("Expected a parentheses before argument list."))?;
-        let _ = self.advance();
-
         let mut args = Vec::new();
         args.push(self.expr()?);
 
@@ -117,22 +73,56 @@ impl Parser {
 
         Ok(args)
     }
-    // call -> group args_list?
-    pub fn call(&self) -> Result<Expr, Error> {
-        let mut expr = self.group()?;
-        if self.is_match(TokType::LParen) {
-            let args = self.args_list()?;
-            expr = Expr::Call(Call { f: Box::new(expr), args, lparen: self.toks[self.cur.get() - 1].clone() }) 
-        }
-        Ok(expr)
+    // call -> IDENTIFIER args_list
+    pub fn call(&self, identifier: Tok) -> Result<Expr, Error> {
+        assert_eq!(self.advance().t, TokType::LParen);
+        let args = self.args_list()?;
+        Ok(Expr::Call(Call { identifier, args, lparen: self.toks[self.cur.get() - 1].clone() }))
     }
-    // negate -> '-'? call
+    // primary -> NUMBER | (IDENTIFIER | call)
+    fn primary(&self) -> Result<Expr, Error> {
+        let next = self.advance().clone();
+        let lexeme = if next.lexeme.as_bytes().get(0).map(|c| *c == b'\n').unwrap_or(false) {
+            String::from("end of line")
+        } else {
+            format!("'{}'", next.lexeme)
+        };
+        match next.t {
+            TokType::Number => {
+                Ok(Expr::Literal(next))
+            }
+            TokType::Identifier => {
+                if self.is_match(TokType::LParen) {
+                    self.call(next)
+                } else {
+                    Ok(Expr::Literal(next))
+                }
+            }
+            _ => return Err(Error {
+                msg: format!("Expected a number or variable, instead found {}.", lexeme),
+                line: next.line, col_start: next.col_start, col_end: next.col_end,
+            }),
+        }
+    }
+    // group -> "(" expr ")" | primary
+    fn group(&self) -> Result<Expr, Error> {
+        if self.is_match(TokType::LParen) {
+            let _ = self.advance();
+            let expr = self.expr()?;
+            self.expect(TokType::RParen, String::from("Expected a closing parentheses"))?;
+            let _ = self.advance();
+            Ok(Expr::Group(Box::new(expr)))
+        } else {
+            self.primary()
+        }
+    }
+    // negate -> '-'? group
     fn negate(&self) -> Result<Expr, Error> {
         if self.is_match(TokType::Minus) {
             let minus = self.advance().clone();
-            self.call().map(|e| Expr::Negate(Negate{ minus, value: Box::new(e) }))
+            self.group().map(|e| Expr::Negate(Negate{ minus, value: Box::new(e) }))
         } else {
-            self.call()
+            self.group()
         }
     }
     // expo -> negate ('^' expo)?
@@ -181,20 +171,20 @@ impl Parser {
     }
     // params_list -> '(' IDENTIFIER (',' IDENTIFIER)* ')'
     pub fn params_list(&self) -> Result<Vec<String>, Error> {
-        self.expect(TokType::LParen, String::from("Expected a parentheses before argument list."))?;
+        self.expect(TokType::LParen, String::from("Expected a parentheses before parameter list."))?;
         let _ = self.advance();
 
         let mut args = Vec::new();
-        self.expect(TokType::Identifier, String::from("Expected an argument here."))?;
+        self.expect(TokType::Identifier, String::from("Expected an parameter here."))?;
         args.push(self.advance().lexeme.clone());
 
         while self.is_match(TokType::Comma) {
             let _ = self.advance();
-            self.expect(TokType::Identifier, String::from("Expected an argument to follow the comma."))?;
+            self.expect(TokType::Identifier, String::from("Expected an parameter to follow the comma."))?;
             args.push(self.advance().lexeme.clone());
         }
 
-        self.expect(TokType::RParen, String::from("Expected a closing parentheses after arguments."))?;
+        self.expect(TokType::RParen, String::from("Expected a closing parentheses after parameters."))?;
         let _ = self.advance();
 
         Ok(args)

@@ -55,7 +55,7 @@ pub struct Negate {
 
 #[derive(Debug, Clone)]
 pub struct Call {
-    pub f: Box<Expr>,
+    pub identifier: Tok,
     pub args: Vec<Expr>,
     pub lparen: Tok,
 }
