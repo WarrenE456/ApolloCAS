@@ -19,6 +19,7 @@ pub enum Expr {
     Binary(Binary),
     Negate(Negate),
     Call(Call),
+    Exp(Exp),
 }
 
 impl Expr {
@@ -27,7 +28,14 @@ impl Expr {
         match self {
             Literal(l) => l.lexeme.clone(),
             Group(e) => format!("({})", (*e).to_string()),
-            Binary(b) => format!("{} {} {}", b.l.to_string(), b.op.lexeme.clone(), b.r.to_string()),
+            Binary(b) => {
+                b.operands
+                    .iter().enumerate()
+                    .filter(|(i, _)| *i != 0)
+                    .fold(b.operands.first().unwrap().to_string(), |acc, (i, v)| {
+                        format!("{} {} {}", acc, b.ops[i - 1].lexeme, v.to_string())
+                    })
+            },
             Negate(n) => format!("-{}", n.value.to_string()),
             Call(c) => {
                 let args = c.args
@@ -37,20 +45,27 @@ impl Expr {
                     .join(", ");
                 format!("{}({})", c.identifier.lexeme, args)
             }
+            Exp(e) => format!("{}^{}", e.base.to_string(), e.power.to_string()),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Binary {
-    pub l: Box<Expr>,
+pub struct Exp {
+    pub base: Box<Expr>,
+    pub power: Box<Expr>,
     pub op: Tok,
-    pub r: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Binary {
+    pub ops: Vec<Tok>,
+    pub operands: Vec<Expr>,
 }
 
 impl Binary {
-    pub fn new(l: Expr, op: Tok, r: Expr) -> Self {
-        Self { l: Box::from(l), op, r: Box::from(r) }
+    pub fn new(ops: Vec<Tok>, operands: Vec<Expr>) -> Self {
+        Self { ops, operands }
     }
 }
 

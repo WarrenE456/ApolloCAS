@@ -10,11 +10,10 @@ use apollo::Apollo;
 
 /* TODO
 *
-* fix negate/exp presidence
-* expr simplification
-* derivatives
-* integrals
-* graphing
+* seperate numbers from other values
+* factorial (higher precidence than factorial)
+* 'infinite' percision rational number representation
+* gcd/misc. functions
 *
 */
 

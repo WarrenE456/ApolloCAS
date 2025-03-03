@@ -51,26 +51,29 @@ impl<'a> Interpreter<'a> {
             _ => unreachable!(),
         }
     }
-    fn binary(&self, b: Binary) -> Result<Val, Error> {
-        let l = self.expr(*b.l)?;
-        let r = self.expr(*b.r)?;
-        use TokType::*;
-        Ok(match (l, r) {
-            (Val::Number(x), Val::Number(y)) => Val::Number(match b.op.t {
-                Plus => x + y,
-                Minus => x - y,
-                Star => x * y,
-                Slash => devide(x, y, &b.op)?,
-                // TODO optimize
-                Carrot => x.powf(y),
-                _ => unreachable!(),
-            }),
-            (x, y) => {
-                let msg = format!("Attempt to use '{}' operator on a {} and {}.", 
-                    b.op.lexeme, x.kind_as_string(), y.kind_as_string());
-                return Err(Error { msg, line: b.op.line, col_start: b.op.col_start, col_end: b.op.col_end });
+    fn unwrap_val(v: Val, op: &Tok) -> Result<f64, Error> {
+        match v {
+            Val::Number(n) => Ok(n),
+            Val::Function(..) => {
+                let msg = format!("Attempt to '{}' with a function.", op.lexeme);
+                Err(Error { msg, line: op.line, col_start: op.col_start, col_end: op.col_end })
             }
-        })
+        }
+    }
+    fn binary(&self, b: Binary) -> Result<Val, Error> {
+        use TokType::*;
+        let mut result = Self::unwrap_val(self.expr(b.operands[0].clone())?, &b.ops[0])?;
+        for i in 1..(b.operands.len()) {
+            let v = Self::unwrap_val(self.expr(b.operands[i].clone())?, &b.ops[i - 1])?;
+            match b.ops[0].t {
+                Plus => result += v,
+                Minus => result -= v,
+                Star => result *= v,
+                Slash => result = devide(result, v, &b.ops[i - 1])?,
+                _ => unreachable!(),
+            }
+        }
+        Ok(Val::Number(result))
     }
     fn negate(&self, n: Negate) -> Result<Val, Error> {
         match self.expr(*n.value)? {
@@ -117,6 +120,20 @@ impl<'a> Interpreter<'a> {
             }
         }
     }
+    fn exp(&self, e: Exp) -> Result<Val, Error> {
+        let base = self.expr(*e.base)?;
+        let power = self.expr(*e.power)?;
+        use Val::*;
+        match (&base, &power) {
+            (Number(a), Number(b)) => Ok(Val::Number(a.powf(*b))),
+            _ => {
+                let msg = format!("Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers.",
+                      base.kind_as_string(), power.kind_as_string()
+                );
+                Err(Error { msg, col_start: e.op.col_start, col_end: e.op.col_end, line: e.op.line })
+            }
+        }
+    }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         return match e {
             Expr::Literal(tok) => self.literal(tok),
@@ -124,6 +141,7 @@ impl<'a> Interpreter<'a> {
             Expr::Binary(b) => self.binary(b),
             Expr::Negate(n) => self.negate(n),
             Expr::Call(c) => self.call(c),
+            Expr::Exp(e) => self.exp(e),
         };
     }
     fn var(&self, a: Var) -> Result<(), Error> {

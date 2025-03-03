@@ -121,8 +121,8 @@ impl Parser {
         let mut expr = self.group()?;
         if self.is_match(TokType::Carrot) {
             let op = self.advance().clone();
-            let r = Box::new(self.expo()?);
-            expr = Expr::Binary(Binary { l: Box::new(expr), op, r });
+            let power = Box::new(self.expo()?);
+            expr = Expr::Exp(Exp { base: Box::new(expr), op, power });
         }
         Ok(expr)
     }
@@ -137,23 +137,33 @@ impl Parser {
     }
     // factor -> negate (('*' | '/') negate)*
     fn factor(&self) -> Result<Expr, Error> {
-        let mut expr = self.negate()?;
-        while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
-            let op = (*self.advance()).clone();
-            let right = self.negate()?;
-            expr = Expr::Binary(Binary::new(expr, op, right));
+        let expr = self.negate()?;
+        if self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
+            let mut operands = vec![expr];
+            let mut ops = Vec::new();
+            while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
+                ops.push(self.advance().clone());
+                operands.push(self.negate()?);
+            }
+            Ok(Expr::Binary(Binary::new(ops, operands)))
+        } else {
+            Ok(expr)
         }
-        Ok(expr)
     }
     // term -> factor (('+' | '-') factor)*
     fn term(&self) -> Result<Expr, Error> {
-        let mut expr = self.factor()?;
-        while self.is_match(TokType::Plus) || self.is_match(TokType::Minus) {
-            let op = self.advance().clone();
-            let right = self.factor()?;
-            expr = Expr::Binary(Binary::new(expr, op, right));
+        let expr = self.factor()?;
+        if self.is_match(TokType::Plus) || self.is_match(TokType::Minus) {
+            let mut operands = vec![expr];
+            let mut ops = Vec::new();
+            while self.is_match(TokType::Plus) || self.is_match(TokType::Minus) {
+                ops.push(self.advance().clone());
+                operands.push(self.factor()?);
+            }
+            Ok(Expr::Binary(Binary::new(ops, operands)))
+        } else {
+            Ok(expr)
         }
-        Ok(expr)
     }
     // expr -> term
     fn expr(&self) -> Result<Expr, Error> {

@@ -15,7 +15,6 @@ pub enum TokType {
     NewLine, EOF
 }
 
-// TODO: start col and end call
 #[derive(PartialEq, Eq, Clone)]
 pub struct Tok {
     pub lexeme: String,
