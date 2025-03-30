@@ -10,10 +10,11 @@ use apollo::Apollo;
 
 /* TODO
 *
-* seperate numbers from other values
-* factorial (higher precidence than factorial)
+* build in functions
+    * make sure that user-defined identifiers to not conflict with builtin's
+* proc & types
+* built in procs
 * 'infinite' percision rational number representation
-* gcd/misc. functions
 *
 */
 

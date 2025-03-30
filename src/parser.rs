@@ -77,7 +77,7 @@ impl Parser {
     pub fn call(&self, identifier: Tok) -> Result<Expr, Error> {
         assert_eq!(self.advance().t, TokType::LParen);
         let args = self.args_list()?;
-        Ok(Expr::Call(Call { identifier, args, lparen: self.toks[self.cur.get() - 1].clone() }))
+        Ok(Expr::Call(Call { identifier, args, rparen: self.toks[self.cur.get() - 1].clone() }))
     }
     // primary -> NUMBER | (IDENTIFIER | call)
     fn primary(&self) -> Result<Expr, Error> {

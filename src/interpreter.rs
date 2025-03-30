@@ -9,6 +9,80 @@ use crate::environment::Env;
 pub enum Val {
     Number(f64),
     Function(Vec<String>, Expr),
+    BuiltIn(BuiltIn),
+}
+
+#[derive(Clone, Copy, Debug)]
+enum BuiltInT {
+    Log,
+}
+
+#[derive(Clone)]
+pub struct BuiltIn {
+    t: BuiltInT
+}
+
+impl BuiltIn {
+    fn is_builtin(s: &str) -> Option<Self> {
+        use BuiltInT::*;
+        let t = match s {
+            "log" => Log,
+            _ => return None,
+        };
+        Some(BuiltIn { t })
+    }
+    fn gen_error(msg: String, c: Call) -> Error {
+        Error {
+            msg,
+            line: c.identifier.line,
+            col_start: c.identifier.col_start,
+            col_end: c.rparen.col_end,
+        }
+    }
+    fn log(c: Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() == 2 {
+            let base = i.expr(c.args[0].clone())?;
+            let arg2 = i.expr(c.args[1].clone())?;
+            match (base, arg2) {
+                (Val::Number(base), Val::Number(x)) => {
+                    Ok(Val::Number(x.log(base)))
+                },
+                (a, b) => {
+                    let msg = format!(
+                        "Attempt take the log of a {} with the base of a {}. Both should be Numbers.",
+                        a.type_as_string(), b.type_as_string(), 
+                    );
+                    Err(Self::gen_error(msg, c))
+                }
+            }
+        }
+        else if c.args.len() == 1 {
+            let a = i.expr(c.args[0].clone())?;
+            match a {
+                Val::Number(a) => Ok(Val::Number(a.log10())),
+                _ => {
+                    Err(Self::gen_error(format!("Can't take the log of a {}.", a.type_as_string()), c))
+                },
+            }
+        }
+        else {
+            Err(Self::gen_error(String::from("Log takes one or two arguments."), c))
+        }
+    }
+    fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
+        use BuiltInT::*;
+        match self.t {
+            Log => {
+                Self::log(c, i)
+            },
+        }
+    }
+    pub fn to_string(&self) -> String {
+        use BuiltInT::*;
+        String::from(match self.t {
+            Log => "log",
+        })
+    }
 }
 
 impl Val {
@@ -16,13 +90,15 @@ impl Val {
         match self {
             Self::Number(n) => format!("{}", n),
             Self::Function(_, e) => e.to_string(),
+            Self::BuiltIn(b) => b.to_string(),
         }
     }
-    pub fn kind_as_string(&self) -> String {
-        match self {
-            Self::Number(_) => String::from("Number"),
-            Self::Function(..) => String::from("Function"),
-        }
+    pub fn type_as_string(&self) -> String {
+        String::from(match self {
+            Self::Number(_) => "Number",
+            Self::Function(..) => "Function",
+            Self::BuiltIn(_) => "BuiltIn",
+        })
     }
 }
 
@@ -51,26 +127,41 @@ impl<'a> Interpreter<'a> {
             _ => unreachable!(),
         }
     }
-    fn unwrap_val(v: Val, op: &Tok) -> Result<f64, Error> {
-        match v {
+    fn expect_number(&self, e: Expr, line: usize, col_start: usize, col_end: usize) -> Result<f64, Error> {
+        match self.expr(e)? {
             Val::Number(n) => Ok(n),
-            Val::Function(..) => {
-                let msg = format!("Attempt to '{}' with a function.", op.lexeme);
-                Err(Error { msg, line: op.line, col_start: op.col_start, col_end: op.col_end })
+            other => {
+                let msg = format!("Expected Number but found {}.", other.type_as_string());
+                Err(Error { msg, line, col_start, col_end })
             }
         }
     }
     fn binary(&self, b: Binary) -> Result<Val, Error> {
+        let mut b = b;
         use TokType::*;
-        let mut result = Self::unwrap_val(self.expr(b.operands[0].clone())?, &b.ops[0])?;
-        for i in 1..(b.operands.len()) {
-            let v = Self::unwrap_val(self.expr(b.operands[i].clone())?, &b.ops[i - 1])?;
-            match b.ops[0].t {
-                Plus => result += v,
-                Minus => result -= v,
-                Star => result *= v,
-                Slash => result = devide(result, v, &b.ops[i - 1])?,
+        let mut op = b.operators.pop().unwrap();
+        let mut result = self.expect_number(b.operands.pop().unwrap(), op.line, op.col_start, op.col_end)?;
+        loop {
+            let next = self.expect_number(b.operands.pop().unwrap(), op.line, op.col_start, op.col_end)?;
+            match op.t {
+                Plus => result += next,
+                Minus => result -= next,
+                Star => result *= next,
+                Slash => {
+                    if next == 0.0 {
+                        let msg = String::from("Attempt to devide by 0.");
+                        return Err(
+                            Error { msg, line: op.line, col_end: op.col_end, col_start: op.col_start }
+                        );
+                    } else {
+                        result /= next;
+                    }
+                }
                 _ => unreachable!(),
+            }
+            op = match b.operators.pop() {
+                Some(op) => op,
+                None => break,
             }
         }
         Ok(Val::Number(result))
@@ -80,8 +171,8 @@ impl<'a> Interpreter<'a> {
             Val::Number(n) => {
                 Ok(Val::Number(-1.0 * n))
             }
-            Val::Function(..) => Err(Error {
-                msg: String::from("Attempt to negate a function."),
+            a => Err(Error {
+                msg: format!("Attempt to negate value of type {}.", a.type_as_string()),
                 line: n.minus.line,
                 col_end: n.minus.col_end,
                 col_start: n.minus.col_start
@@ -89,6 +180,11 @@ impl<'a> Interpreter<'a> {
         }
     }
     fn call(&self, c: Call) -> Result<Val, Error> {
+
+        if let Some(built_in) = BuiltIn::is_builtin(&c.identifier.lexeme) {
+            return built_in.call(c, self);
+        }
+
         let f = self.env.get(&c.identifier)?;
         match f {
             Val::Number(_) => {
@@ -102,7 +198,7 @@ impl<'a> Interpreter<'a> {
             Val::Function(params, body) => {
                 if c.args.len() != params.len() {
                     let col_start = c.identifier.col_start;
-                    let col_end = c.identifier.col_end;
+                    let col_end = c.rparen.col_end;
                     let line = c.identifier.line;
                     let msg = format!(
                         "Attempted to call function '{}' that takes {} arguments with {}.",
@@ -118,6 +214,7 @@ impl<'a> Interpreter<'a> {
                 }
                 scope.expr(body)
             }
+            Val::BuiltIn(_) => unreachable!(),
         }
     }
     fn exp(&self, e: Exp) -> Result<Val, Error> {
@@ -128,7 +225,7 @@ impl<'a> Interpreter<'a> {
             (Number(a), Number(b)) => Ok(Val::Number(a.powf(*b))),
             _ => {
                 let msg = format!("Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers.",
-                      base.kind_as_string(), power.kind_as_string()
+                      base.type_as_string(), power.type_as_string()
                 );
                 Err(Error { msg, col_start: e.op.col_start, col_end: e.op.col_end, line: e.op.line })
             }

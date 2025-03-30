@@ -33,7 +33,7 @@ impl Expr {
                     .iter().enumerate()
                     .filter(|(i, _)| *i != 0)
                     .fold(b.operands.first().unwrap().to_string(), |acc, (i, v)| {
-                        format!("{} {} {}", acc, b.ops[i - 1].lexeme, v.to_string())
+                        format!("{} {} {}", acc, b.operators[i - 1].lexeme, v.to_string())
                     })
             },
             Negate(n) => format!("-{}", n.value.to_string()),
@@ -59,13 +59,15 @@ pub struct Exp {
 
 #[derive(Debug, Clone)]
 pub struct Binary {
-    pub ops: Vec<Tok>,
+    pub operators: Vec<Tok>,
     pub operands: Vec<Expr>,
 }
 
 impl Binary {
-    pub fn new(ops: Vec<Tok>, operands: Vec<Expr>) -> Self {
-        Self { ops, operands }
+    pub fn new(operators: Vec<Tok>, operands: Vec<Expr>) -> Self {
+        let operators = operators.into_iter().rev().collect();
+        let operands = operands.into_iter().rev().collect();
+        Self { operators, operands }
     }
 }
 
@@ -79,7 +81,7 @@ pub struct Negate {
 pub struct Call {
     pub identifier: Tok,
     pub args: Vec<Expr>,
-    pub lparen: Tok,
+    pub rparen: Tok,
 }
 
 #[derive(Debug)]
