@@ -12,9 +12,30 @@ pub enum Val {
     BuiltIn(BuiltIn),
 }
 
+// TODO inverse trig and other other asortment of other asortments of other assortermentnetms... of functions
+// round floor ceil
 #[derive(Clone, Copy, Debug)]
 enum BuiltInT {
     Log,
+    Ln,
+    Sqrt,
+    Sin,
+    Cos,
+    Tan,
+}
+
+impl BuiltInT {
+    pub fn to_string(&self) -> String {
+        use BuiltInT::*;
+        String::from(match self {
+            Log => "log",
+            Ln => "ln",
+            Sqrt => "sqrt",
+            Sin => "lin",
+            Cos => "los",
+            Tan => "tan",
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -27,6 +48,11 @@ impl BuiltIn {
         use BuiltInT::*;
         let t = match s {
             "log" => Log,
+            "ln" => Ln,
+            "sqrt" => Sqrt,
+            "sin" => Sin,
+            "cos" => Cos,
+            "tan" => Tan,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -69,19 +95,42 @@ impl BuiltIn {
             Err(Self::gen_error(String::from("Log takes one or two arguments."), c))
         }
     }
+    fn basic(&self, c: Call, arg_count: usize, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() == arg_count {
+            let a = i.expr(c.args[0].clone())?;
+            match a {
+                Val::Number(a) => {
+                    use BuiltInT::*;
+                    Ok(Val::Number(match self.t {
+                        Ln => a.ln(),
+                        Sqrt => a.sqrt(),
+                        Sin => a.sin(),
+                        Cos => a.cos(),
+                        Tan => a.tan(),
+                        _ => unreachable!(),
+                    }))
+                },
+                _ => {
+                    Err(Self::gen_error(
+                        format!("Can't take the {} of a {}.", self.t.to_string(), a.type_as_string()), c
+                    ))
+                },
+            }
+        }
+        else {
+            Err(Self::gen_error(format!("The {} function takes one argument.", self.t.to_string().to_uppercase()), c))
+        }
+
+    }
     fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
-            Log => {
-                Self::log(c, i)
-            },
+            Log => Self::log(c, i),
+            _ => self.basic(c, 1, i),
         }
     }
     pub fn to_string(&self) -> String {
-        use BuiltInT::*;
-        String::from(match self.t {
-            Log => "log",
-        })
+        self.t.to_string()
     }
 }
 
