@@ -1,3 +1,4 @@
+// TODO add bang op
 /* Grammar
 *
 * program -> '\n'* ((statement | $) '\n'+)+
@@ -197,10 +198,27 @@ impl Parser {
         }
         Ok(expr)
     }
-    // TODO change
-    // expr -> term
+    // comp -> or ("and" comp)*
+    fn and(&self) -> Result<Expr,Error> {
+        let mut expr = self.comp()?;
+        while self.is_match(TokType::And) {
+            let op = self.advance().clone();
+            expr = Expr::And(And { op, left: Box::new(expr), right: Box::new(self.comp()?) });
+        }
+        Ok(expr)
+    }
+    // or -> comp ("or" comp)*
+    fn or(&self) -> Result<Expr,Error> {
+        let mut expr = self.and()?;
+        while self.is_match(TokType::Or) {
+            let op = self.advance().clone();
+            expr = Expr::Or(Or { op, left: Box::new(expr), right: Box::new(self.and()?) });
+        }
+        Ok(expr)
+    }
+    // expr -> and
     fn expr(&self) -> Result<Expr, Error> {
-        self.comp()
+        self.or()
     }
     // var -> "let" IDENTIFIER '=' expr
     fn var(&self) -> Result<Var, Error> {

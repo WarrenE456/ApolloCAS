@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::error::Error;
 
+// TODO: true and false
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokType {
     // Single characters
@@ -10,7 +11,7 @@ pub enum TokType {
     // 1-2 Characters
     Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual,
     // Fixed number of characters
-    Let, Def,
+    Let, Def, Or, And,
     // Variable number of characters
     Number, Identifier,
     // Msc.
@@ -54,6 +55,8 @@ impl<'a> Scanner<'a> {
         let keywords = HashMap::from([
             (String::from("let"), TokType::Let),
             (String::from("def"), TokType::Def),
+            (String::from("or"), TokType::Or),
+            (String::from("and"), TokType::And),
         ]);
         Scanner {
             program,

@@ -10,10 +10,10 @@ use apollo::Apollo;
 
 /* TODO
 *
-* build in functions
-    * make sure that user-defined identifiers to not conflict with builtin's
+* fix false = false error
+* (1!=1) errors. Fix it.
 * proc & types
-* built in procs
+* graphing shit
 * 'infinite' percision rational number representation
 *
 */

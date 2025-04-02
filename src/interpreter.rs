@@ -350,6 +350,38 @@ impl<'a> Interpreter<'a> {
         }
         Ok(Val::Bool(true))
     }
+    fn or(&self, o: Or) -> Result<Val, Error> {
+        match (self.expr(*o.left)?, self.expr(*o.right)?) {
+            (Val::Bool(a), Val::Bool(b)) => {
+                Ok(Val::Bool(a || b))
+            }
+            (a, b) => {
+                let msg = format!(
+                    "Attempt to 'or' types {} and {}. This can only be done with Bools.",
+                    a.type_as_string(), b.type_as_string(),
+                );
+                return Err(Error {
+                    msg, line: o.op.line, col_start: o.op.col_start, col_end: o.op.col_end
+                });
+            }
+        }
+    }
+    fn and(&self, a: And) -> Result<Val, Error> {
+        match (self.expr(*a.left)?, self.expr(*a.right)?) {
+            (Val::Bool(l), Val::Bool(r)) => {
+                Ok(Val::Bool(l && r))
+            }
+            (l, r) => {
+                let msg = format!(
+                    "Attempt to 'or' types {} and {}. This can only be done with Bools.",
+                    l.type_as_string(), r.type_as_string(),
+                );
+                return Err(Error {
+                    msg, line: a.op.line, col_start: a.op.col_start, col_end: a.op.col_end
+                });
+            }
+        }
+    }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         use Expr::*;
         return match e {
@@ -360,6 +392,8 @@ impl<'a> Interpreter<'a> {
             Call(c) => self.call(c),
             Exp(e) => self.exp(e),
             Comp(c) => self.comp(c),
+            Or(o) => self.or(o),
+            And(a) => self.and(a),
         };
     }
     fn var(&self, a: Var) -> Result<(), Error> {
@@ -383,13 +417,4 @@ impl<'a> Interpreter<'a> {
             Command(_) => todo!(),
         };
     }
-}
-
-fn devide(x: f64, y: f64, op: &Tok) -> Result<f64, Error> {
-    return if y == 0.0 {
-        let msg = String::from("Attempt to devide by zero.");
-        Err(Error { msg, line: op.line, col_start: op.col_start, col_end: op.col_end })
-    } else {
-        Ok(x / y)
-    };
 }

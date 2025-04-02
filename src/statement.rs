@@ -21,6 +21,8 @@ pub enum Expr {
     Call(Call),
     Exp(Exp),
     Comp(Comp),
+    Or(Or),
+    And(And),
 }
 
 impl Expr {
@@ -55,6 +57,8 @@ impl Expr {
                         format!("{} {} {}", acc, c.operators[i - 1].lexeme, v.to_string())
                     })
             }
+            And(a) => format!("{} and {}", a.right.to_string(), a.left.to_string()),
+            Or(o) => format!("{} or {}", o.right.to_string(), o.left.to_string()),
         }
     }
 }
@@ -93,6 +97,27 @@ pub struct Call {
     pub rparen: Tok,
 }
 
+#[derive(Debug, Clone)]
+pub struct Comp {
+    pub operators: Vec<Tok>,
+    pub operands: Vec<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Or {
+    pub op: Tok,
+    pub left: Box<Expr>,
+    pub right: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct And {
+    pub op: Tok,
+    pub left: Box<Expr>,
+    pub right: Box<Expr>,
+}
+
+
 #[derive(Debug)]
 pub struct Var {
     pub identifier: Tok,
@@ -106,10 +131,4 @@ pub struct Def {
     pub args: Vec<String>,
     pub op: Tok,
     pub value: Expr,
-}
-
-#[derive(Debug, Clone)]
-pub struct Comp {
-    pub operators: Vec<Tok>,
-    pub operands: Vec<Expr>,
 }
