@@ -7,6 +7,8 @@ use crate::error::Error;
 pub enum TokType {
     // Single characters
     Plus, Minus, Star, Slash, LParen, RParen, Carrot, Equal, Comma,
+    // 1-2 Characters
+    Lesser, Greater, LesserEqual, GreaterEqual,
     // Fixed number of characters
     Let, Def,
     // Variable number of characters
@@ -98,6 +100,7 @@ impl<'a> Scanner<'a> {
         Error { msg, line: self.line.get(), col_start: self.col.get(), col_end: self.col.get()}
     }
     fn get_next_tok(&self) -> Option<Result<Tok, Error>> {
+        // TODO macro to remove the Some(Ok... garbage
         use TokType::*;
         self.p_pos.set(self.pos.get());
         let c = self.advance();
@@ -111,6 +114,22 @@ impl<'a> Scanner<'a> {
             b')' => Some(Ok(self.make_tok(RParen, 0))),
             b'^' => Some(Ok(self.make_tok(Carrot, 0))),
             b',' => Some(Ok(self.make_tok(Comma, 0))),
+            b'<' => {
+                if self.peek() == b'=' {
+                    let _ = self.advance();
+                    Some(Ok(self.make_tok(LesserEqual, 1)))
+                } else {
+                    Some(Ok(self.make_tok(Lesser, 1)))
+                }
+            }
+            b'>' => {
+                if self.peek() == b'=' {
+                    let _ = self.advance();
+                    Some(Ok(self.make_tok(GreaterEqual, 1)))
+                } else {
+                    Some(Ok(self.make_tok(Greater, 1)))
+                }
+            }
             b'0'..=b'9' => {
                 let mut len = 0;
                 while is_num(self.peek()) {

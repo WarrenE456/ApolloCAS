@@ -2,11 +2,20 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> (expr | command | var | def)
+* statement -> (expr | command | var | def | if)
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 *
+* if -> 'if' cond block
+* 
+* cond ->
+* block -> '\n'* '{' '\n'+ (statement '\n'+)* '\n'
+*
 * expr -> term
+* and -> or ("and" or)*
+* or -> term ("or" term)*
+* equality -> comp ("=" comp)*
+* comp -> term ((">" | "<" | ">=" | "<=") term)*
 * term -> factor (('+' | '-') factor)*
 * factor -> negate (('*' | '/') negate)*
 * negate -> '-'? expo
@@ -41,6 +50,15 @@ impl Parser {
     }
     fn is_match(&self, t: TokType) -> bool {
         self.peek().t == t
+    }
+    fn any_match(&self, t: &[TokType]) -> bool {
+        let current = self.peek();
+        for t in t {
+            if current.t == *t {
+                return true;
+            }
+        }
+        false
     }
     fn advance(&self) -> &Tok {
         let cur = self.cur.get();
@@ -165,9 +183,25 @@ impl Parser {
             Ok(expr)
         }
     }
+    // comp -> term ((">" | "<" | ">=" | "<=") term)*
+    fn comp(&self) -> Result<Expr, Error> {
+        let mut expr = self.term()?;
+        use TokType::*;
+        if self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual]) {
+            let mut operators = Vec::new();
+            let mut operands = vec![expr];
+            while self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual]) {
+                operators.push(self.advance().clone());
+                operands.push(self.term()?);
+            }
+            expr = Expr::Comp(Comp { operators, operands });
+        }
+        Ok(expr)
+    }
+    // TODO change
     // expr -> term
     fn expr(&self) -> Result<Expr, Error> {
-        self.term()
+        self.comp()
     }
     // var -> "let" IDENTIFIER '=' expr
     fn var(&self) -> Result<Var, Error> {

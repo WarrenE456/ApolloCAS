@@ -20,6 +20,7 @@ pub enum Expr {
     Negate(Negate),
     Call(Call),
     Exp(Exp),
+    Comp(Comp),
 }
 
 impl Expr {
@@ -46,6 +47,14 @@ impl Expr {
                 format!("{}({})", c.identifier.lexeme, args)
             }
             Exp(e) => format!("{}^{}", e.base.to_string(), e.power.to_string()),
+            Comp(c) => {
+                c.operands
+                    .iter().enumerate()
+                    .filter(|(i, _)| *i != 0)
+                    .fold(c.operands.first().unwrap().to_string(), |acc, (i, v)| {
+                        format!("{} {} {}", acc, c.operators[i - 1].lexeme, v.to_string())
+                    })
+            }
         }
     }
 }
@@ -97,4 +106,10 @@ pub struct Def {
     pub args: Vec<String>,
     pub op: Tok,
     pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct Comp {
+    pub operators: Vec<Tok>,
+    pub operands: Vec<Expr>,
 }

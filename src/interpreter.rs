@@ -10,13 +10,41 @@ pub enum Val {
     Number(f64),
     Function(Vec<String>, Expr),
     BuiltIn(BuiltIn),
+    Bool(bool),
+    Unit,
 }
+
+impl Val {
+    pub fn as_string(&self) -> String {
+        use Val::*;
+        match self {
+            Number(n) => format!("{}", n),
+            Function(_, e) => e.to_string(),
+            BuiltIn(b) => b.to_string(),
+            Unit => String::from("()"),
+            Bool(b) => String::from(if *b { "true" } else { "false" }),
+        }
+    }
+    pub fn type_as_string(&self) -> String {
+        use Val::*;
+        String::from(match self {
+            Number(_) => "Number",
+            Function(..) => "Function",
+            BuiltIn(_) => "BuiltIn",
+            Unit => "Unit",
+            Bool(_) => "Bool",
+        })
+    }
+}
+
 
 // TODO inverse trig and other other asortment of other asortments of other assortermentnetms... of functions
 // round floor ceil
 #[derive(Clone, Copy, Debug)]
 enum BuiltInT {
     Log,
+    Print,
+    Println,
     Ln,
     Sqrt,
     Sin,
@@ -30,6 +58,8 @@ impl BuiltInT {
         String::from(match self {
             Log => "log",
             Ln => "ln",
+            Print => "print",
+            Println => "println",
             Sqrt => "sqrt",
             Sin => "lin",
             Cos => "los",
@@ -49,6 +79,8 @@ impl BuiltIn {
         let t = match s {
             "log" => Log,
             "ln" => Ln,
+            "print" => Print,
+            "println" => Println,
             "sqrt" => Sqrt,
             "sin" => Sin,
             "cos" => Cos,
@@ -95,6 +127,13 @@ impl BuiltIn {
             Err(Self::gen_error(String::from("Log takes one or two arguments."), c))
         }
     }
+    fn print(c: Call, i: &Interpreter) -> Result<Val, Error> {
+        for arg in c.args.iter() {
+            let v = i.expr(arg.clone())?;
+            print!("{}", v.to_string());
+        }
+        Ok(Val::Unit)
+    }
     fn basic(&self, c: Call, arg_count: usize, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() == arg_count {
             let a = i.expr(c.args[0].clone())?;
@@ -126,28 +165,17 @@ impl BuiltIn {
         use BuiltInT::*;
         match self.t {
             Log => Self::log(c, i),
+            Print => Self::print(c, i),
+            Println => {
+                Self::print(c, i)?;
+                println!("");
+                Ok(Val::Unit)
+            }
             _ => self.basic(c, 1, i),
         }
     }
     pub fn to_string(&self) -> String {
         self.t.to_string()
-    }
-}
-
-impl Val {
-    pub fn as_string(&self) -> String {
-        match self {
-            Self::Number(n) => format!("{}", n),
-            Self::Function(_, e) => e.to_string(),
-            Self::BuiltIn(b) => b.to_string(),
-        }
-    }
-    pub fn type_as_string(&self) -> String {
-        String::from(match self {
-            Self::Number(_) => "Number",
-            Self::Function(..) => "Function",
-            Self::BuiltIn(_) => "BuiltIn",
-        })
     }
 }
 
@@ -241,7 +269,7 @@ impl<'a> Interpreter<'a> {
                 let col_end = c.identifier.col_end;
                 let line = c.identifier.line;
                 return Err(
-                    Error { msg: format!("Attempt to use function calling notation on a number."), col_start, col_end, line }
+                    Error { msg: format!("Attempt to use function calling notation on a Number."), col_start, col_end, line }
                 );
             }
             Val::Function(params, body) => {
@@ -263,7 +291,16 @@ impl<'a> Interpreter<'a> {
                 }
                 scope.expr(body)
             }
+            Val::Bool(_) => {
+                let col_start = c.identifier.col_start;
+                let col_end = c.identifier.col_end;
+                let line = c.identifier.line;
+                return Err(
+                    Error { msg: format!("Attempt to use function calling notation on a Bool."), col_start, col_end, line }
+                );
+            }
             Val::BuiltIn(_) => unreachable!(),
+            Val::Unit => unreachable!(),
         }
     }
     fn exp(&self, e: Exp) -> Result<Val, Error> {
@@ -280,14 +317,47 @@ impl<'a> Interpreter<'a> {
             }
         }
     }
+    fn comp(&self, c: Comp) -> Result<Val, Error> {
+        let mut c = c;
+        let vals = vec![self.expr(c.operands.pop().unwrap())?];
+        while c.operands.len() > 0 {
+            let val = self.expr(c.operands.pop().unwrap())?;
+            let op = c.operators.pop().unwrap();
+            use TokType::*;
+            let val = match (vals.last().unwrap(), &val) {
+                (Val::Number(b), Val::Number(a)) => match op.t {
+                    Greater => a > b,
+                    GreaterEqual => a >= b,
+                    Lesser => a < b,
+                    LesserEqual => a <= b,
+                    _ => unreachable!(),
+                }
+                (a, b) => {
+                    let msg = format!(
+                        "Attempt to compare types {} and {}. Comparisions can only occur between Numbers.",
+                        a.type_as_string(), b.type_as_string()
+                    );
+                    return Err(Error {
+                        msg, line: op.line, col_start: op.col_start, col_end: op.col_end
+                    });
+                }
+            };
+            if val == false {
+                return Ok(Val::Bool(false));
+            }
+        }
+        Ok(Val::Bool(true))
+    }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
+        use Expr::*;
         return match e {
-            Expr::Literal(tok) => self.literal(tok),
-            Expr::Group(e) => self.expr(*e),
-            Expr::Binary(b) => self.binary(b),
-            Expr::Negate(n) => self.negate(n),
-            Expr::Call(c) => self.call(c),
-            Expr::Exp(e) => self.exp(e),
+            Literal(tok) => self.literal(tok),
+            Group(e) => self.expr(*e),
+            Binary(b) => self.binary(b),
+            Negate(n) => self.negate(n),
+            Call(c) => self.call(c),
+            Exp(e) => self.exp(e),
+            Comp(c) => self.comp(c),
         };
     }
     fn var(&self, a: Var) -> Result<(), Error> {
