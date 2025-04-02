@@ -119,7 +119,6 @@ impl<'a> Scanner<'a> {
             b',' => Some(Ok(self.make_tok(Comma, 0))),
             b'<' => {
                 if self.is_match(b'=') {
-                    let _ = self.advance();
                     Some(Ok(self.make_tok(LesserEqual, 1)))
                 } else {
                     Some(Ok(self.make_tok(Lesser, 0)))
@@ -127,15 +126,13 @@ impl<'a> Scanner<'a> {
             }
             b'!' => {
                 if self.is_match(b'=') {
-                    let _ = self.advance();
                     Some(Ok(self.make_tok(BangEqual, 1)))
                 } else {
                     Some(Ok(self.make_tok(Bang, 0)))
                 }
             }
             b'>' => {
-                if self.peek() == b'=' {
-                    let _ = self.advance();
+                if self.is_match(b'=') {
                     Some(Ok(self.make_tok(GreaterEqual, 1)))
                 } else {
                     Some(Ok(self.make_tok(Greater, 1)))
