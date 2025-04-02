@@ -10,7 +10,6 @@ use apollo::Apollo;
 
 /* TODO
 *
-* fix false = false error
 * (1!=1) errors. Fix it.
 * proc & types
 * graphing shit

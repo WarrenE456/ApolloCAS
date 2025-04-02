@@ -334,9 +334,19 @@ impl<'a> Interpreter<'a> {
                     BangEqual => a != b,
                     _ => unreachable!(),
                 }
+                (Val::Bool(a), Val::Bool(b)) => match op.t {
+                    Equal => a == b,
+                    BangEqual => a != b,
+                    _ => {
+                        let msg = String::from("Attempt to do non-equality comparison with Bools.");
+                        return Err(Error {
+                            msg, line: op.line, col_start: op.col_start, col_end: op.col_end
+                        });
+                    }
+                }
                 (a, b) => {
                     let msg = format!(
-                        "Attempt to compare types {} and {}. Comparisions can only occur between Numbers.",
+                        "Attempt to compare types {} and {}.",
                         a.type_as_string(), b.type_as_string()
                     );
                     return Err(Error {
