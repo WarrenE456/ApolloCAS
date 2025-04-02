@@ -330,6 +330,8 @@ impl<'a> Interpreter<'a> {
                     GreaterEqual => a >= b,
                     Lesser => a < b,
                     LesserEqual => a <= b,
+                    Equal => a == b,
+                    BangEqual => a != b,
                     _ => unreachable!(),
                 }
                 (a, b) => {

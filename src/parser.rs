@@ -13,9 +13,8 @@
 *
 * expr -> term
 * and -> or ("and" or)*
-* or -> term ("or" term)*
-* equality -> comp ("=" comp)*
-* comp -> term ((">" | "<" | ">=" | "<=") term)*
+* or -> comp ("or" comp)*
+* comp -> term ((">" | "<" | ">=" | "<=" | "=" | "!=") term)*
 * term -> factor (('+' | '-') factor)*
 * factor -> negate (('*' | '/') negate)*
 * negate -> '-'? expo
@@ -183,14 +182,14 @@ impl Parser {
             Ok(expr)
         }
     }
-    // comp -> term ((">" | "<" | ">=" | "<=") term)*
+    // comp -> term ((">" | "<" | ">=" | "<=" | "=" | "!=") term)*
     fn comp(&self) -> Result<Expr, Error> {
         let mut expr = self.term()?;
         use TokType::*;
-        if self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual]) {
+        if self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual, Equal, BangEqual]) {
             let mut operators = Vec::new();
             let mut operands = vec![expr];
-            while self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual]) {
+            while self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual, Equal, BangEqual]) {
                 operators.push(self.advance().clone());
                 operands.push(self.term()?);
             }

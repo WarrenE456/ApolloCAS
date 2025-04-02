@@ -8,7 +8,7 @@ pub enum TokType {
     // Single characters
     Plus, Minus, Star, Slash, LParen, RParen, Carrot, Equal, Comma,
     // 1-2 Characters
-    Lesser, Greater, LesserEqual, GreaterEqual,
+    Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual,
     // Fixed number of characters
     Let, Def,
     // Variable number of characters
@@ -115,11 +115,19 @@ impl<'a> Scanner<'a> {
             b'^' => Some(Ok(self.make_tok(Carrot, 0))),
             b',' => Some(Ok(self.make_tok(Comma, 0))),
             b'<' => {
-                if self.peek() == b'=' {
+                if self.is_match(b'=') {
                     let _ = self.advance();
                     Some(Ok(self.make_tok(LesserEqual, 1)))
                 } else {
-                    Some(Ok(self.make_tok(Lesser, 1)))
+                    Some(Ok(self.make_tok(Lesser, 0)))
+                }
+            }
+            b'!' => {
+                if self.is_match(b'=') {
+                    let _ = self.advance();
+                    Some(Ok(self.make_tok(BangEqual, 1)))
+                } else {
+                    Some(Ok(self.make_tok(Bang, 0)))
                 }
             }
             b'>' => {
