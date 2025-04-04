@@ -10,7 +10,6 @@ use apollo::Apollo;
 
 /* TODO
 *
-* set statements
 * true and false keywords
 * continue repl on new line
 * proc

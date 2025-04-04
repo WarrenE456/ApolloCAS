@@ -22,7 +22,7 @@
 * expo -> group ('^' expo)?
 * group -> '(' expr ')' | primary
 * call -> IDENTIFIER args_list
-* primary -> NUMBER | (IDENTIFIER | call)
+* primary -> NUMBER | (IDENTIFIER | call) | BOOL
 *
 * command -> ':' command arg*
 * 
@@ -97,7 +97,7 @@ impl Parser {
         let args = self.args_list()?;
         Ok(Expr::Call(Call { identifier, args, rparen: self.toks[self.cur.get() - 1].clone() }))
     }
-    // primary -> NUMBER | (IDENTIFIER | call)
+    // primary -> NUMBER | (IDENTIFIER | call) | BOOL
     fn primary(&self) -> Result<Expr, Error> {
         let next = self.advance().clone();
         let lexeme = if next.lexeme.as_bytes().get(0).map(|c| *c == b'\n').unwrap_or(false) {
@@ -106,7 +106,7 @@ impl Parser {
             format!("'{}'", next.lexeme)
         };
         match next.t {
-            TokType::Number => {
+            TokType::Number | TokType::True | TokType::False => {
                 Ok(Expr::Literal(next))
             }
             TokType::Identifier => {

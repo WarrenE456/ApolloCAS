@@ -200,6 +200,8 @@ impl<'a> Interpreter<'a> {
         use TokType::*;
         match tok.t {
             Number => Ok(Val::Number(tok.lexeme.parse().unwrap())),
+            True => Ok(Val::Bool(true)),
+            False => Ok(Val::Bool(false)),
             Identifier => self.env.get(&tok),
             _ => unreachable!(),
         }
