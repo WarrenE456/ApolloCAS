@@ -5,6 +5,7 @@ use crate::scanner::Tok;
 pub enum Statement {
     Command(Command),
     Var(Var),
+    Set(Set),
     Def(Def),
     Expr(Expr),
     Block(Block),
@@ -126,6 +127,13 @@ pub struct And {
 
 #[derive(Debug, Clone)]
 pub struct Var {
+    pub identifier: Tok,
+    pub op: Tok,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct Set {
     pub identifier: Tok,
     pub op: Tok,
     pub value: Expr,

@@ -287,7 +287,7 @@ impl<'a> Interpreter<'a> {
                 }
                 let scope = Interpreter::from(self);
                 for (i, arg) in c.args.into_iter().enumerate() {
-                    scope.env.def(params[i].clone(), self.expr(arg)?);
+                    scope.env.put(params[i].clone(), self.expr(arg)?);
                 }
                 scope.expr(body)
             }
@@ -408,14 +408,17 @@ impl<'a> Interpreter<'a> {
     }
     fn var(&self, a: Var) -> Result<(), Error> {
         let val = self.expr(a.value)?;
-        self.env.def(a.identifier.lexeme, val.clone());
-        Ok(())
+        self.env.def(a.identifier, val.clone())
+    }
+    fn set(&self, s: Set) -> Result<(), Error> {
+        let val = self.expr(s.value)?;
+        self.env.set(s.identifier, val.clone())
     }
     fn def(&self, d: Def) -> Result<(), Error> {
         self.env.def(
-            d.identifier.lexeme,
+            d.identifier,
             Val::Function(d.args, d.value),
-        );
+        )?;
         Ok(())
     }
     fn block(&self, b: Block) -> Result<(), Error> {
@@ -482,6 +485,7 @@ impl<'a> Interpreter<'a> {
         return match stmt {
             Expr(e) => self.expr(e).map(|e| Some(e)),
             Var(a) => {self.var(a)?; Ok(None)}
+            Set(s) => {self.set(s)?; Ok(None)}
             Def(d) => {self.def(d)?; Ok(None)}
             If(i) => {self.eif(i)?; Ok(None)}
             Block(b) => {

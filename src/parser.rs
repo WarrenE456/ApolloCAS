@@ -3,9 +3,10 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> (expr | command | var | def | block | if | while | break | cont)
+* statement -> (expr | command | var | def | block | if | while | break | cont | set )
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
+* set -> 'set' IDENTIFIER '=' expr
 * if -> 'if' expr block ('else' (block | if))?
 * while -> 'while' expr block
 * 
@@ -230,6 +231,15 @@ impl Parser {
         let value = self.expr()?;
         Ok(Var { identifier, op, value })
     }
+    // set -> 'set' IDENTIFIER '=' expr
+    fn set(&self) -> Result<Set, Error> {
+        let _ = self.advance();
+        let identifier = self.advance().clone();
+        self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
+        let op = self.advance().clone();
+        let value = self.expr()?;
+        Ok(Set { identifier, op, value })
+    }
     // params_list -> '(' IDENTIFIER (',' IDENTIFIER)* ')'
     pub fn params_list(&self) -> Result<Vec<String>, Error> {
         self.expect(TokType::LParen, String::from("Expected a parentheses before parameter list."))?;
@@ -327,6 +337,7 @@ impl Parser {
     fn statement(&self) -> Result<Statement, Error> {
         match self.peek().t {
             TokType::Let => self.var().map(|a| Statement::Var(a)),
+            TokType::Set => self.set().map(|s| Statement::Set(s)),
             TokType::Def => self.def().map(|d| Statement::Def(d)),
             TokType::LCurly => self.block().map(|b| Statement::Block(b)),
             TokType::If => self.eif().map(|i| Statement::If(i)),

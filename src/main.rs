@@ -17,6 +17,7 @@ use apollo::Apollo;
 * types
 * graphing shit
 * 'infinite' percision rational number representation
+* CAS
 *
 */
 
