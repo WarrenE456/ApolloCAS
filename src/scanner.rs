@@ -7,11 +7,11 @@ use crate::error::Error;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokType {
     // Single characters
-    Plus, Minus, Star, Slash, LParen, RParen, Carrot, Equal, Comma,
+    Plus, Minus, Star, Slash, LParen, RParen, Carrot, Equal, Comma, LCurly, RCurly,
     // 1-2 Characters
     Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual,
     // Fixed number of characters
-    Let, Def, Or, And,
+    Let, Def, Or, And, If, Else, While,
     // Variable number of characters
     Number, Identifier,
     // Msc.
@@ -57,6 +57,9 @@ impl<'a> Scanner<'a> {
             (String::from("def"), TokType::Def),
             (String::from("or"), TokType::Or),
             (String::from("and"), TokType::And),
+            (String::from("if"), TokType::If),
+            (String::from("else"), TokType::Else),
+            (String::from("while"), TokType::While),
         ]);
         Scanner {
             program,
@@ -117,6 +120,8 @@ impl<'a> Scanner<'a> {
             b')' => Some(Ok(self.make_tok(RParen, 0))),
             b'^' => Some(Ok(self.make_tok(Carrot, 0))),
             b',' => Some(Ok(self.make_tok(Comma, 0))),
+            b'{' => Some(Ok(self.make_tok(LCurly, 0))),
+            b'}' => Some(Ok(self.make_tok(RCurly, 0))),
             b'<' => {
                 if self.is_match(b'=') {
                     Some(Ok(self.make_tok(LesserEqual, 1)))

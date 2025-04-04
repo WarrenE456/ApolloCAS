@@ -10,8 +10,11 @@ use apollo::Apollo;
 
 /* TODO
 *
-* (1!=1) errors. Fix it.
-* proc & types
+* scope
+* break
+* set statements
+* proc
+* types
 * graphing shit
 * 'infinite' percision rational number representation
 *

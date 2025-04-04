@@ -3,14 +3,13 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> (expr | command | var | def | if)
+* statement -> (expr | command | var | def | block | if | while)
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
-*
-* if -> 'if' cond block
+* if -> 'if' expr block ('else' (block | if))?
+* while -> 'while' expr block
 * 
-* cond ->
-* block -> '\n'* '{' '\n'+ (statement '\n'+)* '\n'
+* block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
 *
 * expr -> term
 * and -> or ("and" or)*
@@ -263,14 +262,65 @@ impl Parser {
 
         Ok(Def { identifier, args, op, value: self.expr()? })
     }
+    // block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
+    fn block(&self) -> Result<Block, Error> {
+        self.skip_new_lines();
+        self.expect(TokType::LCurly, String::from("Expected opening curly brace."))?;
+        let _ = self.advance();
+        self.expect(TokType::NewLine, String::from("Expected new line."))?;
+        let _ = self.advance();
+
+        let mut statements = Vec::new();
+        loop {
+            self.skip_new_lines();
+            if self.is_match(TokType::RCurly) {
+                let _ = self.advance();
+                break;
+            }
+            statements.push(self.statement()?);
+            self.expect(TokType::NewLine, String::from("Expected new line."))?;
+        }
+        
+        Ok(Block{ statements })
+    }
+    // if -> 'if' expr block ('else' (block | if))?
+    fn eif(&self) -> Result<If, Error> {
+        let eif = self.advance().clone();
+        let cond = self.expr()?;
+        let if_branch = Box::new(Statement::Block(self.block()?));
+        let mut else_branch = None;
+        if self.is_match(TokType::Else) {
+            let _ = self.advance();
+            if self.is_match(TokType::If) {
+                else_branch = Some(Statement::If(self.eif()?));
+            } else {
+                else_branch = Some(Statement::Block(self.block()?));
+            }
+        }
+        Ok(If {
+            eif, cond, if_branch, else_branch: else_branch.map(|e| Box::new(e))
+        })
+    }
+    fn hwile(&self) -> Result<While, Error> {
+        let hwile = self.advance().clone();
+        let cond = self.expr()?;
+        let body = Box::new(Statement::Block(self.block()?));
+        Ok(While { hwile, cond, body })
+    }
     // TODO: command
-    // statement -> (expr | command | var | def)
+    // statement -> (expr | command | var | def | if | block)
     fn statement(&self) -> Result<Statement, Error> {
         if self.is_match(TokType::Let) {
             self.var().map(|a| Statement::Var(a))
         } else if self.is_match(TokType::Def) {
             self.def().map(|d| Statement::Def(d))
-        } else {
+        } else if self.is_match(TokType::If) {
+            self.eif().map(|i| Statement::If(i))
+        } else if self.is_match(TokType::LCurly) {
+            self.block().map(|b| Statement::Block(b))
+        }  else if self.is_match(TokType::While) {
+            self.hwile().map(|w| Statement::While(w))
+        }else {
             self.expr().map(|e| Statement::Expr(e))
         }
     }
@@ -284,7 +334,7 @@ impl Parser {
         self.skip_new_lines();
         let line = self.statement()?;
         self.skip_new_lines();
-        self.expect(TokType::EOF, String::from("expected new line."))?;
+        self.expect(TokType::EOF, String::from("Expected new line."))?;
         Ok(line)
     }
     // program -> '\n'* ((line | $) '\n'+)+
@@ -293,7 +343,7 @@ impl Parser {
         self.skip_new_lines();
         while !self.is_match(TokType::EOF) {
             lines.push(self.statement()?);
-            self.expect(TokType::NewLine, String::from("expected a new line."))?;
+            self.expect(TokType::NewLine, String::from("Expected a new line."))?;
             self.skip_new_lines();
         }
         return Ok(lines);

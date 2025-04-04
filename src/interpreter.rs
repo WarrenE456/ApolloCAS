@@ -418,12 +418,67 @@ impl<'a> Interpreter<'a> {
         );
         Ok(())
     }
-    pub fn interpret(&self, stmt: Statement) -> Result<Option<Val>, Error> {
+    fn block(&self, b: Block) -> Result<(), Error> {
+        for statement in b.statements.into_iter() {
+            self.interpret(statement)?;
+        }
+        Ok(())
+    }
+    fn eif(&self, i: If) -> Result<(), Error> {
+        match self.expr(i.cond)? {
+            Val::Bool(b) => {
+                if b {
+                    self.interpret(*i.if_branch)?;
+                } else {
+                    if let Some(else_branch) = i.else_branch {
+                        self.interpret(*else_branch)?;
+                    }
+                }
+            }
+            a => {
+                let msg = format!("Attempt to use a {} as the condition of an if statement, expected Bool.", a.type_as_string());
+                return Err(Error{
+                    msg, col_start: i.eif.col_start, col_end: i.eif.col_end, line: i.eif.line
+                })
+            }
+        }
+        Ok(())
+    }
+    fn hwile(&self, w: While) -> Result<(), Error> {
+        loop {
+            // TODO remove this cloneing non-sense
+            match self.expr(w.cond.clone())? {
+                Val::Bool(b) => {
+                    if b {
+                        // TODO remove this cloneing non-sense
+                        self.interpret((*w.body).clone())?;
+                    } else {
+                        break;
+                    }
+                }
+                a => {
+                    let msg = format!("Attempt to use a {} as the condition of an while statement, expected Bool.", a.type_as_string());
+                    return Err(Error{
+                        msg, col_start: w.hwile.col_start, col_end: w.hwile.col_end, line: w.hwile.line
+                    })
+                }
+            }
+        }
+            Ok(())
+    }
+    pub fn interpret(&'a self, stmt: Statement) -> Result<Option<Val>, Error> {
         use Statement::*;
         return match stmt {
             Expr(e) => self.expr(e).map(|e| Some(e)),
-            Var(a) => {self.var(a)?; Ok(None)},
-            Def(d) => {self.def(d)?; Ok(None)},
+            Var(a) => {self.var(a)?; Ok(None)}
+            Def(d) => {self.def(d)?; Ok(None)}
+            If(i) => {self.eif(i)?; Ok(None)}
+            Block(b) => {
+                let inner_scope = Self::from(self);
+                inner_scope.block(b)?;
+                Ok(None)
+            },
+            While(w) => {self.hwile(w)?; Ok(None)}
             Command(_) => todo!(),
         };
     }

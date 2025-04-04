@@ -1,14 +1,17 @@
 use crate::scanner::Tok;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Command(Command),
     Var(Var),
     Def(Def),
     Expr(Expr),
+    Block(Block),
+    If(If),
+    While(While),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Command {
 }
 
@@ -118,17 +121,37 @@ pub struct And {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Var {
     pub identifier: Tok,
     pub op: Tok,
     pub value: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Def {
     pub identifier: Tok,
     pub args: Vec<String>,
     pub op: Tok,
     pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct Block {
+    pub statements: Vec<Statement>,
+}
+
+#[derive(Debug, Clone)]
+pub struct If {
+    pub eif: Tok,
+    pub cond: Expr,
+    pub if_branch: Box<Statement>,
+    pub else_branch: Option<Box<Statement>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct While {
+    pub hwile: Tok,
+    pub cond: Expr,
+    pub body: Box<Statement>,
 }
