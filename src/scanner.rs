@@ -11,7 +11,7 @@ pub enum TokType {
     // 1-2 Characters
     Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual,
     // Fixed number of characters
-    Let, Def, Or, And, If, Else, While,
+    Let, Def, Or, And, If, Else, While, Break, Continue,
     // Variable number of characters
     Number, Identifier,
     // Msc.
@@ -60,6 +60,8 @@ impl<'a> Scanner<'a> {
             (String::from("if"), TokType::If),
             (String::from("else"), TokType::Else),
             (String::from("while"), TokType::While),
+            (String::from("break"), TokType::Break),
+            (String::from("continue"), TokType::Continue),
         ]);
         Scanner {
             program,
@@ -103,7 +105,7 @@ impl<'a> Scanner<'a> {
         Tok { lexeme, line: self.line.get(), col_end: self.col.get(), col_start: self.col.get() - len, t }
     }
     fn gen_error(&self, msg: String) -> Error {
-        Error { msg, line: self.line.get(), col_start: self.col.get(), col_end: self.col.get()}
+        Error { msg, line: self.line.get(), col_start: self.col.get(), col_end: self.col.get(), special: None}
     }
     fn get_next_tok(&self) -> Option<Result<Tok, Error>> {
         // TODO macro to remove the Some(Ok... garbage

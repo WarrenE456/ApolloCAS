@@ -29,6 +29,7 @@ impl<'a> Env<'a> {
                     Err(Error{
                         msg: format!("Use of undefined variable '{}'.", tok.lexeme),
                         line: tok.line, col_end: tok.col_end, col_start: tok.col_start,
+                        special: None,
                     })
                 }
             }

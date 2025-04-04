@@ -1,3 +1,4 @@
+use crate::error::Error;
 use crate::scanner::Tok;
 
 #[derive(Debug, Clone)]
@@ -9,6 +10,8 @@ pub enum Statement {
     Block(Block),
     If(If),
     While(While),
+    Break(Error),
+    Continue(Error),
 }
 
 #[derive(Debug, Clone)]

@@ -10,9 +10,9 @@ use apollo::Apollo;
 
 /* TODO
 *
-* scope
-* break
 * set statements
+* true and false keywords
+* continue repl on new line
 * proc
 * types
 * graphing shit

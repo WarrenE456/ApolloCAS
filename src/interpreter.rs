@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::error::Error;
+use crate::error::{Error, Special};
 use crate::statement::*;
 use crate::scanner::{Tok, TokType};
 use crate::environment::Env;
@@ -90,7 +90,7 @@ impl BuiltIn {
         Some(BuiltIn { t })
     }
     fn gen_error(msg: String, c: Call) -> Error {
-        Error {
+        Error { special: None,
             msg,
             line: c.identifier.line,
             col_start: c.identifier.col_start,
@@ -209,7 +209,7 @@ impl<'a> Interpreter<'a> {
             Val::Number(n) => Ok(n),
             other => {
                 let msg = format!("Expected Number but found {}.", other.type_as_string());
-                Err(Error { msg, line, col_start, col_end })
+                Err(Error { special: None, msg, line, col_start, col_end })
             }
         }
     }
@@ -228,7 +228,7 @@ impl<'a> Interpreter<'a> {
                     if next == 0.0 {
                         let msg = String::from("Attempt to devide by 0.");
                         return Err(
-                            Error { msg, line: op.line, col_end: op.col_end, col_start: op.col_start }
+                            Error { special: None, msg, line: op.line, col_end: op.col_end, col_start: op.col_start }
                         );
                     } else {
                         result /= next;
@@ -248,7 +248,7 @@ impl<'a> Interpreter<'a> {
             Val::Number(n) => {
                 Ok(Val::Number(-1.0 * n))
             }
-            a => Err(Error {
+            a => Err(Error { special: None,
                 msg: format!("Attempt to negate value of type {}.", a.type_as_string()),
                 line: n.minus.line,
                 col_end: n.minus.col_end,
@@ -269,7 +269,7 @@ impl<'a> Interpreter<'a> {
                 let col_end = c.identifier.col_end;
                 let line = c.identifier.line;
                 return Err(
-                    Error { msg: format!("Attempt to use function calling notation on a Number."), col_start, col_end, line }
+                    Error { special: None, msg: format!("Attempt to use function calling notation on a Number."), col_start, col_end, line }
                 );
             }
             Val::Function(params, body) => {
@@ -282,7 +282,7 @@ impl<'a> Interpreter<'a> {
                         c.identifier.lexeme, params.len(), c.args.len()
                     );
                     return Err(
-                        Error { msg, col_start, col_end, line }
+                        Error { special: None, msg, col_start, col_end, line }
                     );
                 }
                 let scope = Interpreter::from(self);
@@ -296,7 +296,7 @@ impl<'a> Interpreter<'a> {
                 let col_end = c.identifier.col_end;
                 let line = c.identifier.line;
                 return Err(
-                    Error { msg: format!("Attempt to use function calling notation on a Bool."), col_start, col_end, line }
+                    Error { special: None, msg: format!("Attempt to use function calling notation on a Bool."), col_start, col_end, line }
                 );
             }
             Val::BuiltIn(_) => unreachable!(),
@@ -313,7 +313,7 @@ impl<'a> Interpreter<'a> {
                 let msg = format!("Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers.",
                       base.type_as_string(), power.type_as_string()
                 );
-                Err(Error { msg, col_start: e.op.col_start, col_end: e.op.col_end, line: e.op.line })
+                Err(Error { special: None, msg, col_start: e.op.col_start, col_end: e.op.col_end, line: e.op.line })
             }
         }
     }
@@ -339,7 +339,7 @@ impl<'a> Interpreter<'a> {
                     BangEqual => a != b,
                     _ => {
                         let msg = String::from("Attempt to do non-equality comparison with Bools.");
-                        return Err(Error {
+                        return Err(Error { special: None,
                             msg, line: op.line, col_start: op.col_start, col_end: op.col_end
                         });
                     }
@@ -349,7 +349,7 @@ impl<'a> Interpreter<'a> {
                         "Attempt to compare types {} and {}.",
                         a.type_as_string(), b.type_as_string()
                     );
-                    return Err(Error {
+                    return Err(Error { special: None,
                         msg, line: op.line, col_start: op.col_start, col_end: op.col_end
                     });
                 }
@@ -370,8 +370,8 @@ impl<'a> Interpreter<'a> {
                     "Attempt to 'or' types {} and {}. This can only be done with Bools.",
                     a.type_as_string(), b.type_as_string(),
                 );
-                return Err(Error {
-                    msg, line: o.op.line, col_start: o.op.col_start, col_end: o.op.col_end
+                return Err(Error { special: None,
+                    msg, line: o.op.line, col_start: o.op.col_start, col_end: o.op.col_end,
                 });
             }
         }
@@ -386,7 +386,7 @@ impl<'a> Interpreter<'a> {
                     "Attempt to 'or' types {} and {}. This can only be done with Bools.",
                     l.type_as_string(), r.type_as_string(),
                 );
-                return Err(Error {
+                return Err(Error { special: None,
                     msg, line: a.op.line, col_start: a.op.col_start, col_end: a.op.col_end
                 });
             }
@@ -437,7 +437,7 @@ impl<'a> Interpreter<'a> {
             }
             a => {
                 let msg = format!("Attempt to use a {} as the condition of an if statement, expected Bool.", a.type_as_string());
-                return Err(Error{
+                return Err(Error { special: None,
                     msg, col_start: i.eif.col_start, col_end: i.eif.col_end, line: i.eif.line
                 })
             }
@@ -445,20 +445,31 @@ impl<'a> Interpreter<'a> {
         Ok(())
     }
     fn hwile(&self, w: While) -> Result<(), Error> {
-        loop {
+        'a: loop {
             // TODO remove this cloneing non-sense
             match self.expr(w.cond.clone())? {
                 Val::Bool(b) => {
                     if b {
                         // TODO remove this cloneing non-sense
-                        self.interpret((*w.body).clone())?;
+                        match self.interpret((*w.body).clone()) {
+                            Err(e) => if let Some(s) = e.special {
+                                use Special::*;
+                                match s {
+                                    Break => { break 'a },
+                                    Continue => continue,
+                                }
+                            } else {
+                                return Err(e);
+                            }
+                            Ok(_) => continue,
+                        }
                     } else {
                         break;
                     }
                 }
                 a => {
                     let msg = format!("Attempt to use a {} as the condition of an while statement, expected Bool.", a.type_as_string());
-                    return Err(Error{
+                    return Err(Error { special: None,
                         msg, col_start: w.hwile.col_start, col_end: w.hwile.col_end, line: w.hwile.line
                     })
                 }
@@ -479,6 +490,8 @@ impl<'a> Interpreter<'a> {
                 Ok(None)
             },
             While(w) => {self.hwile(w)?; Ok(None)}
+            Break(e) => Err(e),
+            Continue(e) => Err(e),
             Command(_) => todo!(),
         };
     }

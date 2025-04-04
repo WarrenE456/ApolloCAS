@@ -3,7 +3,7 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> (expr | command | var | def | block | if | while)
+* statement -> (expr | command | var | def | block | if | while | break | cont)
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * if -> 'if' expr block ('else' (block | if))?
@@ -33,7 +33,7 @@ use std::cell::Cell;
 
 use crate::scanner::{Tok, TokType};
 use crate::statement::*;
-use crate::error::Error;
+use crate::error::{Error, Special};
 
 pub struct Parser {
     toks: Vec<Tok>,
@@ -70,7 +70,7 @@ impl Parser {
     fn expect(&self, t: TokType, msg: String) -> Result<(), Error> {
         let tok = self.peek();
         if tok.t != t {
-            Err(Error { msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end})
+            Err(Error { special: None, msg, line: tok.line, col_start: tok.col_start, col_end: tok.col_end})
         } else{
             Ok(())
         }
@@ -118,6 +118,7 @@ impl Parser {
             _ => return Err(Error {
                 msg: format!("Expected a number or variable, instead found {}.", lexeme),
                 line: next.line, col_start: next.col_start, col_end: next.col_end,
+                special: None,
             }),
         }
     }
@@ -307,21 +308,32 @@ impl Parser {
         let body = Box::new(Statement::Block(self.block()?));
         Ok(While { hwile, cond, body })
     }
+    fn _break(&self) -> Error {
+        let b = self.advance();
+        let msg = String::from("Attempt to use break statement outside of loop");
+        Error {
+            msg, special: Some(Special::Break), col_start: b.col_start, col_end: b.col_end, line: b.line
+        }
+    }
+    fn _continue(&self) -> Error {
+        let b = self.advance();
+        let msg = String::from("Attempt to use continue statement outside of loop");
+        Error {
+            msg, special: Some(Special::Continue), col_start: b.col_start, col_end: b.col_end, line: b.line
+        }
+    }
     // TODO: command
-    // statement -> (expr | command | var | def | if | block)
+    // statement -> (expr | command | var | def | block | if | while | break | cont)
     fn statement(&self) -> Result<Statement, Error> {
-        if self.is_match(TokType::Let) {
-            self.var().map(|a| Statement::Var(a))
-        } else if self.is_match(TokType::Def) {
-            self.def().map(|d| Statement::Def(d))
-        } else if self.is_match(TokType::If) {
-            self.eif().map(|i| Statement::If(i))
-        } else if self.is_match(TokType::LCurly) {
-            self.block().map(|b| Statement::Block(b))
-        }  else if self.is_match(TokType::While) {
-            self.hwile().map(|w| Statement::While(w))
-        }else {
-            self.expr().map(|e| Statement::Expr(e))
+        match self.peek().t {
+            TokType::Let => self.var().map(|a| Statement::Var(a)),
+            TokType::Def => self.def().map(|d| Statement::Def(d)),
+            TokType::LCurly => self.block().map(|b| Statement::Block(b)),
+            TokType::If => self.eif().map(|i| Statement::If(i)),
+            TokType::While => self.hwile().map(|w| Statement::While(w)),
+            TokType::Break => Ok(Statement::Break(self._break())),
+            TokType::Continue => Ok(Statement::Continue(self._continue())),
+            _ => self.expr().map(|e| Statement::Expr(e)),
         }
     }
     fn skip_new_lines(&self) {

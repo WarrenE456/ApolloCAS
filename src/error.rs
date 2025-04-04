@@ -1,9 +1,16 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub enum Special {
+    Break,
+    Continue,
+}
+
+#[derive(Debug, Clone)]
 pub struct Error {
     pub msg: String,
     pub line: usize,
     pub col_start: usize,
     pub col_end: usize,
+    pub special: Option<Special>
 }
 
 impl Error {
