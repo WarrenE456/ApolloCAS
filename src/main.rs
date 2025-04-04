@@ -10,8 +10,6 @@ use apollo::Apollo;
 
 /* TODO
 *
-* true and false keywords
-* continue repl on new line
 * proc
 * types
 * graphing shit

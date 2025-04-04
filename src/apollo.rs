@@ -8,6 +8,13 @@ use crate::scanner::Scanner;
 use crate::parser::Parser;
 use crate::interpreter::Interpreter;
 
+fn curly_braces_closed(s: &String) -> bool {
+    let s = s.as_bytes();
+    let num_lparen = s.iter().fold(0, |acc, x| if *x == b'{' { acc + 1 } else { acc });
+    let num_rparen = s.iter().fold(0, |acc, x| if *x == b'}' { acc + 1 } else { acc });
+    num_lparen == num_rparen
+}
+
 pub struct Apollo {
 }
 
@@ -26,16 +33,35 @@ impl Apollo {
         }
         let interpreter = Interpreter::new();
         let mut lines: Vec<String> = Vec::new();
-        let mut line_count = 0;
+        let mut prev_line_count = 0;
         loop {
-            print!(">\t");
-            let _ = stdout().flush();
-            let mut line = String::new();
-            stdin().read_line(&mut line).unwrap();
-            lines.push(line.clone());
-            line_count += 1;
+            let mut program = String::new();
+            let mut num_new_lines = 0;
 
-            let scanner = Scanner::from(line.as_bytes(), line_count);
+            loop {
+                let mut line = String::new();
+
+                if num_new_lines == 0 {
+                    print!(">>>\t");
+                } else {
+                    print!("...\t");
+                }
+                let _ = stdout().flush();
+
+                stdin().read_line(&mut line).unwrap();
+                num_new_lines += 1;
+
+                program += &line;
+                lines.push(line);
+
+                if curly_braces_closed(&program) {
+                    break;
+                }
+            }
+            
+            let scanner = Scanner::from(program.as_bytes(), prev_line_count + 1);
+            prev_line_count += num_new_lines;
+
             let toks = handle_error!(scanner.scan(), &lines);
 
             let parser = Parser::new(toks);
