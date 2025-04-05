@@ -1,4 +1,3 @@
-// TODO add bang op
 /* Grammar
 *
 * program -> '\n'* ((statement | $) '\n'+)+
@@ -32,6 +31,7 @@
 */
 
 use std::cell::Cell;
+use std::collections::HashSet;
 
 use crate::scanner::{Tok, TokType};
 use crate::statement::*;
@@ -322,7 +322,6 @@ impl Parser {
         let body = Box::new(Statement::Block(self.block()?));
         Ok(While { hwile, cond, body })
     }
-    // TODO ensure that there are not params named the same thing
     // proc -> 'proc' IDENTIFIER '(' (IDENTIFIER ( ',' IDENTIFIER )*)? ')' block
     fn proc(&self) -> Result<Proc, Error> {
         let _ = self.advance();
@@ -331,16 +330,26 @@ impl Parser {
         self.expect(TokType::LParen, String::from("Expected opening parenthesis"))?;
         let _ = self.advance();
 
-        let mut params = Vec::new();
+        let mut params = HashSet::new();
 
         if self.is_match(TokType::Identifier) {
-            params.push(self.advance().lexeme.clone());
+            params.insert(self.advance().lexeme.clone());
         }
 
         while self.is_match(TokType::Comma) {
             let _ = self.advance();
-            self.expect(TokType::LParen, String::from("Expected paremeter name here."))?;
-            params.push(self.advance().lexeme.clone());
+            self.expect(TokType::Identifier, String::from("Expected parameter name here."))?;
+
+            let cur = self.advance();
+
+            if params.contains(&cur.lexeme) {
+                let msg = String::from("Attempt to create duplicate parameter.");
+                return Err(Error {
+                    msg, special: None, col_start: cur.col_start, col_end: cur.col_end, line: cur.line
+                })
+            } else {
+                params.insert(cur.lexeme.clone());
+            }
         }
 
         self.expect(TokType::RParen, String::from("Expected closing parenthesis."))?;
@@ -348,6 +357,7 @@ impl Parser {
 
         let body = self.block()?;
 
+        let params = params.into_iter().collect();
         Ok(Proc { name, params, body })
     }
     fn _break(&self) -> Error {
