@@ -13,10 +13,28 @@ pub struct Error {
     pub special: Option<Special>
 }
 
+fn replace_tabs_w_4spaces(s: &String) -> String {
+    s.bytes()
+        .into_iter()
+        .fold(String::new(), |acc, x| 
+            if x == b'\t' {
+                acc + "    "
+            } else {
+                let mut acc = acc;
+                acc.push(x as char);
+                acc
+            }
+        )
+}
+
 impl Error {
     pub fn display(&self, lines: &Vec<String>) {
+        let line = replace_tabs_w_4spaces(&lines[self.line - 1])
+            .trim_end()
+            .to_owned();
+
         println!("Error on line {}: {}", self.line, self.msg);
-        println!("{}", lines[self.line - 1].trim_end());
+        println!("{}", line);
         if self.col_start == self.col_end {
             println!("{}^", "-".repeat(self.col_start - 1));
         } else {

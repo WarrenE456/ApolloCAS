@@ -164,7 +164,11 @@ impl<'a> Scanner<'a> {
                 }
                 Some(Ok(self.make_tok(Number, len)))
             }
-            b' ' | b'\r' | b'\t' => {
+            b' ' | b'\r' => {
+                self.get_next_tok()
+            }
+            b'\t' => {
+                self.col.set(self.col.get() + 3);
                 self.get_next_tok()
             }
             b'\n' => {
