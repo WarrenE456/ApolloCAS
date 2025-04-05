@@ -28,7 +28,7 @@
 * command -> ':' command arg*
 * 
 * params_list -> '(' IDENTIFIER (',' IDENTIFIER)* ')'
-* args_list -> '(' expr (',' expr )* ')'
+* args_list -> '(' (expr (',' expr )*)? ')'
 */
 
 use std::cell::Cell;
@@ -77,14 +77,17 @@ impl Parser {
             Ok(())
         }
     }
-    // args_list -> '(' expr (',' expr )* ')'
+    // args_list -> '(' (expr (',' expr )*)? ')'
     pub fn args_list(&self) -> Result<Vec<Expr>, Error> {
         let mut args = Vec::new();
-        args.push(self.expr()?);
 
-        while self.is_match(TokType::Comma) {
-            let _ = self.advance();
+        if !self.is_match(TokType::RParen) {
             args.push(self.expr()?);
+
+            while self.is_match(TokType::Comma) {
+                let _ = self.advance();
+                args.push(self.expr()?);
+            }
         }
 
         self.expect(TokType::RParen, String::from("Expected a closing parentheses after arguments."))?;
