@@ -3,12 +3,13 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> (expr | command | var | def | block | if | while | break | cont | set )
+* statement -> (expr | command | var | def | block | if | while | break | cont | set | proc )
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * set -> 'set' IDENTIFIER '=' expr
 * if -> 'if' expr block ('else' (block | if))?
 * while -> 'while' expr block
+* proc -> 'proc' IDENTIFIER '(' (IDENTIFIER ( ',' IDENTIFIER )*)? ')' block
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
 *
@@ -318,6 +319,34 @@ impl Parser {
         let body = Box::new(Statement::Block(self.block()?));
         Ok(While { hwile, cond, body })
     }
+    // TODO ensure that there are not params named the same thing
+    // proc -> 'proc' IDENTIFIER '(' (IDENTIFIER ( ',' IDENTIFIER )*)? ')' block
+    fn proc(&self) -> Result<Proc, Error> {
+        let _ = self.advance();
+        self.expect(TokType::Identifier, String::from("Expected procedure name."))?;
+        let name = self.advance().clone();
+        self.expect(TokType::LParen, String::from("Expected opening parenthesis"))?;
+        let _ = self.advance();
+
+        let mut params = Vec::new();
+
+        if self.is_match(TokType::Identifier) {
+            params.push(self.advance().lexeme.clone());
+        }
+
+        while self.is_match(TokType::Comma) {
+            let _ = self.advance();
+            self.expect(TokType::LParen, String::from("Expected paremeter name here."))?;
+            params.push(self.advance().lexeme.clone());
+        }
+
+        self.expect(TokType::RParen, String::from("Expected closing parenthesis."))?;
+        let _ = self.advance();
+
+        let body = self.block()?;
+
+        Ok(Proc { name, params, body })
+    }
     fn _break(&self) -> Error {
         let b = self.advance();
         let msg = String::from("Attempt to use break statement outside of loop");
@@ -344,6 +373,7 @@ impl Parser {
             TokType::While => self.hwile().map(|w| Statement::While(w)),
             TokType::Break => Ok(Statement::Break(self._break())),
             TokType::Continue => Ok(Statement::Continue(self._continue())),
+            TokType::Proc => self.proc().map(|p| Statement::Proc(p)),
             _ => self.expr().map(|e| Statement::Expr(e)),
         }
     }

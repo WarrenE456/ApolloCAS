@@ -12,6 +12,7 @@ pub enum Val {
     BuiltIn(BuiltIn),
     Bool(bool),
     Unit,
+    Proc(ProcVal),
 }
 
 impl Val {
@@ -23,6 +24,8 @@ impl Val {
             BuiltIn(b) => b.to_string(),
             Unit => String::from("()"),
             Bool(b) => String::from(if *b { "true" } else { "false" }),
+            // TODO print types
+            Proc(_) => String::from("<procedure>"),
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -33,6 +36,8 @@ impl Val {
             BuiltIn(_) => "BuiltIn",
             Unit => "Unit",
             Bool(_) => "Bool",
+            // TODO print types
+            Proc(_) => "Procedure",
         })
     }
 }
@@ -179,6 +184,35 @@ impl BuiltIn {
     }
 }
 
+#[derive(Clone)]
+pub struct ProcVal {
+    params: Vec<String>,
+    body: Block,
+}
+
+impl ProcVal {
+    pub fn from(p: Proc) -> Self {
+        Self { params: p.params, body: p.body }
+    }
+    pub fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != self.params.len() {
+            let msg = format!("Procedure expected {} arguments but received {}.", self.params.len(), c.args.len());
+            return Err(Error {
+                special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
+            });
+        }
+        let scope = Interpreter::from(&i);
+        for (k, arg) in c.args.into_iter().enumerate() {
+            let val = i.expr(arg)?;
+            scope.env.put(self.params[k].clone(), val);
+        }
+
+        // todo remove cloning non-sense
+        scope.block(self.body.clone())?;
+        Ok(Val::Unit)
+    }
+}
+
 impl fmt::Display for Val {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_string())
@@ -266,6 +300,9 @@ impl<'a> Interpreter<'a> {
 
         let f = self.env.get(&c.identifier)?;
         match f {
+            Val::Proc(p) => {
+                p.call(c, self)
+            }
             Val::Number(_) => {
                 let col_start = c.identifier.col_start;
                 let col_end = c.identifier.col_end;
@@ -482,6 +519,9 @@ impl<'a> Interpreter<'a> {
         }
             Ok(())
     }
+    fn proc(&self, p: Proc) -> Result<(), Error> {
+        self.env.def(p.name.clone(), Val::Proc(ProcVal::from(p)))
+    }
     pub fn interpret(&'a self, stmt: Statement) -> Result<Option<Val>, Error> {
         use Statement::*;
         return match stmt {
@@ -496,6 +536,7 @@ impl<'a> Interpreter<'a> {
                 Ok(None)
             },
             While(w) => {self.hwile(w)?; Ok(None)}
+            Proc(p) => {self.proc(p)?; Ok(None)}
             Break(e) => Err(e),
             Continue(e) => Err(e),
             Command(_) => todo!(),

@@ -11,6 +11,7 @@ pub enum Statement {
     Block(Block),
     If(If),
     While(While),
+    Proc(Proc),
     Break(Error),
     Continue(Error),
 }
@@ -165,4 +166,11 @@ pub struct While {
     pub hwile: Tok,
     pub cond: Expr,
     pub body: Box<Statement>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Proc {
+    pub name: Tok,
+    pub params: Vec<String>,
+    pub body: Block,
 }

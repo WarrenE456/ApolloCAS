@@ -11,7 +11,7 @@ pub enum TokType {
     // 1-2 Characters
     Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual,
     // Fixed number of characters
-    Let, Def, Or, And, If, Else, While, Break, Continue, Set, True, False,
+    Let, Def, Or, And, If, Else, While, Break, Continue, Set, True, False, Proc,
     // Variable number of characters
     Number, Identifier,
     // Msc.
@@ -65,6 +65,7 @@ impl<'a> Scanner<'a> {
             (String::from("set"), TokType::Set),
             (String::from("true"), TokType::True),
             (String::from("false"), TokType::False),
+            (String::from("proc"), TokType::Proc),
         ]);
         Scanner {
             program,
