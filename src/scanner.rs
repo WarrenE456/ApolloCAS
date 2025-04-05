@@ -13,7 +13,7 @@ pub enum TokType {
     // Fixed number of characters
     Let, Def, Or, And, If, Else, While, Break, Continue, Set, True, False, Proc,
     // Variable number of characters
-    Number, Identifier,
+    Number, Identifier, Str,
     // Msc.
     NewLine, EOF
 }
@@ -108,6 +108,12 @@ impl<'a> Scanner<'a> {
             .to_owned();
         Tok { lexeme, line: self.line.get(), col_end: self.col.get(), col_start: self.col.get() - len, t }
     }
+    fn make_tok_with_offset(&self, t: TokType, len: usize, offset: usize) -> Tok {
+        let lexeme = std::str::from_utf8(&self.program[(self.p_pos.get() + offset)..self.pos.get()])
+            .unwrap()
+            .to_owned();
+        Tok { lexeme, line: self.line.get(), col_end: self.col.get(), col_start: self.col.get() - len, t }
+    }
     fn gen_error(&self, msg: String) -> Error {
         Error { msg, line: self.line.get(), col_start: self.col.get(), col_end: self.col.get(), special: None}
     }
@@ -163,6 +169,22 @@ impl<'a> Scanner<'a> {
                     }
                 }
                 Some(Ok(self.make_tok(Number, len)))
+            }
+            b'"' => {
+                let _ = self.advance();
+                let mut len = 0;
+                while self.peek() != b'"' {
+                    if self.peek() == b'\n' {
+                        return Some(Err(
+                            self.gen_error(String::from("Expected closing quote to end string.")))
+                        );
+                    }
+                    let _ = self.advance();
+                    len += 1;
+                }
+                let tok = self.make_tok_with_offset(Str, len, 1);
+                let _ = self.advance();
+                Some(Ok(tok))
             }
             b' ' | b'\r' => {
                 self.get_next_tok()

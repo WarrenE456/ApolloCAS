@@ -120,6 +120,9 @@ impl Parser {
                     Ok(Expr::Literal(next))
                 }
             }
+            TokType::Str => {
+                Ok(Expr::Literal(next))
+            }
             _ => return Err(Error {
                 msg: format!("Expected a number or variable, instead found {}.", lexeme),
                 line: next.line, col_start: next.col_start, col_end: next.col_end,

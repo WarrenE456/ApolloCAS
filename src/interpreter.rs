@@ -13,6 +13,7 @@ pub enum Val {
     Bool(bool),
     Unit,
     Proc(ProcVal),
+    Str(Vec<u8>),
 }
 
 impl Val {
@@ -26,6 +27,7 @@ impl Val {
             Bool(b) => String::from(if *b { "true" } else { "false" }),
             // TODO print types
             Proc(_) => String::from("<procedure>"),
+            Str(s) => String::from_utf8(s.clone()).unwrap(),
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -38,6 +40,7 @@ impl Val {
             Bool(_) => "Bool",
             // TODO print types
             Proc(_) => "Procedure",
+            Str(_) => "String",
         })
     }
 }
@@ -236,6 +239,7 @@ impl<'a> Interpreter<'a> {
             Number => Ok(Val::Number(tok.lexeme.parse().unwrap())),
             True => Ok(Val::Bool(true)),
             False => Ok(Val::Bool(false)),
+            Str => Ok(Val::Str(Vec::from(tok.lexeme.as_bytes()))),
             Identifier => self.env.get(&tok),
             _ => unreachable!(),
         }
@@ -340,6 +344,7 @@ impl<'a> Interpreter<'a> {
             }
             Val::BuiltIn(_) => unreachable!(),
             Val::Unit => unreachable!(),
+            Val::Str(_) => unreachable!(),
         }
     }
     fn exp(&self, e: Exp) -> Result<Val, Error> {

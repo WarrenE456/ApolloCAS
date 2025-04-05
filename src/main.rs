@@ -10,11 +10,15 @@ use apollo::Apollo;
 
 /* TODO
 *
-* proc
-* types
+* strings
 * graphing shit
+* types
 * 'infinite' percision rational number representation
 * CAS
+*
+* anonymous fns
+* special characters in strings
+* string ops
 *
 */
 
