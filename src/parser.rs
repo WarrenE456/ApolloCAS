@@ -334,21 +334,21 @@ impl Parser {
 
         if self.is_match(TokType::Identifier) {
             params.insert(self.advance().lexeme.clone());
-        }
 
-        while self.is_match(TokType::Comma) {
-            let _ = self.advance();
-            self.expect(TokType::Identifier, String::from("Expected parameter name here."))?;
+            while self.is_match(TokType::Comma) {
+                let _ = self.advance();
+                self.expect(TokType::Identifier, String::from("Expected parameter name here."))?;
 
-            let cur = self.advance();
+                let cur = self.advance();
 
-            if params.contains(&cur.lexeme) {
-                let msg = String::from("Attempt to create duplicate parameter.");
-                return Err(Error {
-                    msg, special: None, col_start: cur.col_start, col_end: cur.col_end, line: cur.line
-                })
-            } else {
-                params.insert(cur.lexeme.clone());
+                if params.contains(&cur.lexeme) {
+                    let msg = String::from("Attempt to create duplicate parameter.");
+                    return Err(Error {
+                        msg, special: None, col_start: cur.col_start, col_end: cur.col_end, line: cur.line
+                    })
+                } else {
+                    params.insert(cur.lexeme.clone());
+                }
             }
         }
 
