@@ -8,6 +8,9 @@ use sdl2::{
     rect::Point,
 };
 
+use crate::statement::Expr;
+use crate::interpreter::{Val, Interpreter};
+
 pub enum Status {
     Running,
     Stopped,
@@ -58,23 +61,41 @@ impl Graph {
         self.canvas.draw_line(Point::new(x_1, y_1), Point::new(x_2, y_2))?;
         Ok(())
     }
-    fn graph(&mut self, f: fn(f64) -> f64) {
+    fn graph(&mut self, var_name: String, e: Expr, i: &Interpreter) {
+        let scope = Interpreter::from(i);
         let dx = (self.max_x - self.min_x) / (self.n as f64);
 
         let mut x_1 = self.min_x;
         while x_1 < self.max_x {
             let x_2 = x_1 + dx;
-            let y_1 = f(x_1);
-            let y_2 = f(x_2);
+            let y_1 = match scope.eval_expr_at(&e, &var_name, x_1) {
+                Ok(Val::Number(v)) => v,
+                _ => continue,
+            };
+            let y_2 = match scope.eval_expr_at(&e, &var_name, x_2) {
+                Ok(Val::Number(v)) => v,
+                _ => continue,
+            };
             let _ = self.draw_line(x_1, y_1, x_2, y_2, Color::RED);
             x_1 = x_2;
         }
     }
-    pub fn render(&mut self) -> Status {
+    pub fn render(&mut self, i: &Interpreter) -> Status {
         self.canvas.set_draw_color(FILL_COLOR);
         self.canvas.clear();
 
-        self.graph(|x| -1.0 * x * x.sin());
+        use crate::scanner::Scanner;
+        use crate::parser::Parser;
+        use crate::statement::Statement;
+
+        let scanner= Scanner::new("x * x\n".as_bytes());
+        let parser = Parser::new(scanner.scan().unwrap());
+        let e = match parser.parse().unwrap()[0].clone() {
+            Statement::Expr(e) => e,
+            _ => panic!("shit"),
+        };
+
+        self.graph(String::from("x"), e, i);
 
         self.canvas.present();
 

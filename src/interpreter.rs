@@ -450,6 +450,12 @@ impl<'a> Interpreter<'a> {
             And(a) => self.and(a),
         };
     }
+    pub fn eval_expr_at(&self, e: &Expr, var_name: &str, var: f64) -> Result<Val, Error> {
+        let var = Val::Number(var);
+        self.env.put(var_name.to_string(), var);
+        // TODO remove cloneing
+        self.expr(e.clone())
+    }
     fn var(&self, a: Var) -> Result<(), Error> {
         let val = self.expr(a.value)?;
         self.env.def(a.identifier, val.clone())

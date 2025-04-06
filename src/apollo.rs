@@ -118,7 +118,7 @@ impl Apollo {
         {
             let mut graph = Graph::new("idk").unwrap();
             loop {
-                match graph.render() {
+                match graph.render(&Interpreter::new()) {
                     Status::Stopped => break,
                     Status::Running => {},
                 }
