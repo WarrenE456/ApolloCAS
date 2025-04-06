@@ -7,6 +7,7 @@ use std::io::{stdin, stdout, Write};
 use crate::scanner::Scanner;
 use crate::parser::Parser;
 use crate::interpreter::Interpreter;
+use crate::graph::{Graph, Status};
 
 fn curly_braces_closed(s: &String) -> bool {
     let s = s.as_bytes();
@@ -113,6 +114,17 @@ impl Apollo {
         }
     }
     pub fn run() {
+
+        {
+            let mut graph = Graph::new("idk").unwrap();
+            loop {
+                match graph.render() {
+                    Status::Stopped => break,
+                    Status::Running => {},
+                }
+            }
+        }
+
         let args = args().collect::<Vec<_>>();
         if args.len() == 1 {
             Self::repl();

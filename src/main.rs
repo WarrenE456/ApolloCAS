@@ -5,12 +5,12 @@ pub mod statement;
 pub mod apollo;
 pub mod interpreter;
 pub mod environment;
+pub mod graph;
 
 use apollo::Apollo;
 
 /* TODO
 *
-* strings
 * graphing shit
 * types
 * 'infinite' percision rational number representation
@@ -19,6 +19,7 @@ use apollo::Apollo;
 * anonymous fns
 * special characters in strings
 * string ops
+* line aa
 *
 */
 
