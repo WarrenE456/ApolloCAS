@@ -58,6 +58,7 @@ enum BuiltInT {
     Sin,
     Cos,
     Tan,
+    Exit,
 }
 
 impl BuiltInT {
@@ -72,6 +73,7 @@ impl BuiltInT {
             Sin => "lin",
             Cos => "los",
             Tan => "tan",
+            Exit => "exit",
         })
     }
 }
@@ -93,6 +95,7 @@ impl BuiltIn {
             "sin" => Sin,
             "cos" => Cos,
             "tan" => Tan,
+            "exit" => Exit,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -169,6 +172,32 @@ impl BuiltIn {
         }
 
     }
+    fn exit(c: Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() == 0 {
+            Err(Error {
+                special: Some(Special::Exit(0)), col_start: 0, col_end: 0, line: 0, msg: "".into()
+            })
+        }
+        else if c.args.len() == 1 {
+            // TODO remove this cloning
+            match i.expr(c.args[0].clone())? {
+                Val::Number(n) => Err(Error {
+                    special: Some(Special::Exit(n as i32)), col_start: 0, col_end: 0, line: 0, msg: "".into()
+                }),
+                other => {
+                    let msg = format!("Attempt to call the exit function with a {}. Expected a Number.", other.type_as_string());
+                    Err(Error {
+                        special: None, msg, col_start: c.identifier.col_start, col_end: c.identifier.col_end, line: c.identifier.line
+                    })
+                }
+            }
+        } else {
+            let msg = format!("The exit function takes 0 or 1 arguments, but {} were provided.", c.args.len());
+            Err(Error {
+                special: None, msg, col_start: c.identifier.col_start, col_end: c.identifier.col_end, line: c.identifier.line
+            })
+        }
+    }
     fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -178,6 +207,9 @@ impl BuiltIn {
                 Self::print(c, i)?;
                 println!("");
                 Ok(Val::Unit)
+            }
+            Exit => {
+                Self::exit(c, i)
             }
             _ => self.basic(c, 1, i),
         }
@@ -510,6 +542,7 @@ impl<'a> Interpreter<'a> {
                                 match s {
                                     Break => { break 'a },
                                     Continue => continue,
+                                    Exit(_) => { return Err(e); }
                                 }
                             } else {
                                 return Err(e);

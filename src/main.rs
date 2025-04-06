@@ -27,6 +27,8 @@ use graph::Grapher;
 * special characters in strings
 * string ops
 * line aa
+* implement Error::from(msg, tok)
+* <c-d> to interupt
 *
 */
 

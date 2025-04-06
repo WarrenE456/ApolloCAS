@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 use crate::scanner::Scanner;
 use crate::parser::Parser;
 use crate::interpreter::Interpreter;
+use crate::error::Special::Exit;
 
 fn curly_braces_closed(s: &String) -> bool {
     let s = s.as_bytes();
@@ -30,6 +31,9 @@ impl<'a> Apollo<'a> {
                 match $x {
                     Ok(line) => line,
                     Err(e) => {
+                        if let Some(Exit(code)) = e.special {
+                            exit(code);
+                        }
                         e.display($l);
                         continue;
                     }
@@ -86,6 +90,9 @@ impl<'a> Apollo<'a> {
                 match $x {
                     Ok(line) => line,
                     Err(e) => {
+                        if let Some(Exit(code)) = e.special {
+                            exit(code);
+                        }
                         e.display($l);
                         exit(1);
                     }

@@ -1,7 +1,8 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Special {
     Break,
     Continue,
+    Exit(i32),
 }
 
 #[derive(Debug, Clone)]
