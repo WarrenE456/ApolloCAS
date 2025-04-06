@@ -11,11 +11,26 @@ use sdl2::{
 use crate::statement::Expr;
 use crate::interpreter::{Val, Interpreter};
 
+use std::sync::{Arc, RwLock};
+
 pub enum Status {
     Running,
     Stopped,
 }
 
+pub struct Grapher<'a> {
+    global: Arc<RwLock<Interpreter<'a>>>,
+    graph: Graph,
+}
+
+impl<'a> Grapher<'a> {
+    pub fn new(global: Arc<RwLock<Interpreter<'a>>>) -> Self {
+        Self { global, graph: Graph::new("foo").unwrap() }
+    }
+    pub fn update(&mut self) {
+        self.graph.render(&self.global);
+    }
+}
 
 const FILL_COLOR: Color = Color::RGB(30, 30, 30);
 
@@ -61,7 +76,8 @@ impl Graph {
         self.canvas.draw_line(Point::new(x_1, y_1), Point::new(x_2, y_2))?;
         Ok(())
     }
-    fn graph(&mut self, var_name: String, e: Expr, i: &Interpreter) {
+    fn graph(&mut self, var_name: String, e: Expr, i: &Arc<RwLock<Interpreter>>) {
+        let i = &i.read().unwrap();
         let scope = Interpreter::from(i);
         let dx = (self.max_x - self.min_x) / (self.n as f64);
 
@@ -80,7 +96,8 @@ impl Graph {
             x_1 = x_2;
         }
     }
-    pub fn render(&mut self, i: &Interpreter) -> Status {
+    // TODO remove status maybe
+    pub fn render(&mut self, i: &Arc<RwLock<Interpreter>>) -> Status {
         self.canvas.set_draw_color(FILL_COLOR);
         self.canvas.clear();
 
@@ -88,7 +105,7 @@ impl Graph {
         use crate::parser::Parser;
         use crate::statement::Statement;
 
-        let scanner= Scanner::new("x * x\n".as_bytes());
+        let scanner= Scanner::new("x * x * c\n".as_bytes());
         let parser = Parser::new(scanner.scan().unwrap());
         let e = match parser.parse().unwrap()[0].clone() {
             Statement::Expr(e) => e,

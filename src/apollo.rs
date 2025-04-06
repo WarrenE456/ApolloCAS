@@ -3,11 +3,11 @@ use std::env::args;
 use std::process::exit;
 use std::fs::read_to_string;
 use std::io::{stdin, stdout, Write};
+use std::sync::{Arc, RwLock};
 
 use crate::scanner::Scanner;
 use crate::parser::Parser;
 use crate::interpreter::Interpreter;
-use crate::graph::{Graph, Status};
 
 fn curly_braces_closed(s: &String) -> bool {
     let s = s.as_bytes();
@@ -16,11 +16,15 @@ fn curly_braces_closed(s: &String) -> bool {
     num_lparen == num_rparen
 }
 
-pub struct Apollo {
+pub struct Apollo<'a> {
+    global: Arc<RwLock<Interpreter<'a>>>,
 }
 
-impl Apollo {
-    fn repl() {
+impl<'a> Apollo<'a> {
+    pub fn from(global: Arc<RwLock<Interpreter<'a>>>) -> Self {
+        Self { global }
+    }
+    fn repl(&self) {
         macro_rules! handle_error {
             ($x:expr, $l:expr) => {
                 match $x {
@@ -32,7 +36,6 @@ impl Apollo {
                 }
             }
         }
-        let interpreter = Interpreter::new();
         let mut lines: Vec<String> = Vec::new();
         let mut prev_line_count = 0;
         loop {
@@ -68,13 +71,16 @@ impl Apollo {
             let parser = Parser::new(toks);
             let statement = handle_error!(parser.parse_line(), &lines);
             
-            let val = handle_error!(interpreter.interpret(statement), &lines);
-            if let Some(val) = val {
-                println!("{}", val);
+            {
+                let interpreter = self.global.read().unwrap();
+                let val = handle_error!(interpreter.interpret(statement), &lines);
+                if let Some(val) = val {
+                    println!("{}", val);
+                }
             }
         }
     }
-    fn run_file(args: Vec<String>) {
+    fn run_file(&self, args: Vec<String>) {
         macro_rules! handle_error {
             ($x:expr, $l:expr) => {
                 match $x {
@@ -108,29 +114,18 @@ impl Apollo {
         let parser = Parser::new(toks);
         let lines = handle_error!(parser.parse(), &program_lines);
 
-        let interpreter = Interpreter::new();
         for line in lines.into_iter() {
+            let interpreter = self.global.read().unwrap();
            handle_error!(interpreter.interpret(line), &program_lines); 
         }
     }
-    pub fn run() {
-
-        {
-            let mut graph = Graph::new("idk").unwrap();
-            loop {
-                match graph.render(&Interpreter::new()) {
-                    Status::Stopped => break,
-                    Status::Running => {},
-                }
-            }
-        }
-
+    pub fn run(&self) {
         let args = args().collect::<Vec<_>>();
         if args.len() == 1 {
-            Self::repl();
+            self.repl();
         }
         else if args.len() == 2 {
-            Self::run_file(args);
+            self.run_file(args);
         }
         else {
             eprintln!("Usage: apallo-cas [path/to/file]");
