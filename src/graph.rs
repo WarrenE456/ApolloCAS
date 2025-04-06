@@ -66,7 +66,7 @@ impl Graph {
     fn convert_coords(&self, x: f64, y: f64) -> (i32, i32) {
         let (width, height) = self.canvas.window().size();
         let x: i32 = ((x - self.min_x) / (self.max_x - self.min_x) * (width as f64)) as i32;
-        let y: i32 = ((y - self.min_y) / (self.max_y - self.min_y) * (height as f64)) as i32;
+        let y: i32 = (height as i32) - ((y - self.min_y) / (self.max_y - self.min_y) * (height as f64)) as i32;
         (x, y)
     }
     fn draw_line(&mut self, x_1: f64, y_1: f64, x_2: f64, y_2: f64, color: Color) -> Result<(), String> {
