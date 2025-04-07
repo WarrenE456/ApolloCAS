@@ -2,7 +2,8 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> (expr | command | var | def | block | if | while | break | cont | set | proc )
+* statement -> ( expr | command | var | def | block | if | while | break | cont | set | proc |
+                 return )
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * set -> 'set' IDENTIFIER '=' expr
@@ -377,6 +378,21 @@ impl Parser {
             msg, special: Some(Special::Continue), col_start: b.col_start, col_end: b.col_end, line: b.line
         }
     }
+    fn _return(&self) -> Error {
+        let r = self.advance();
+        let value = if !self.is_match(TokType::NewLine) {
+            Some(match self.expr() {
+                Ok(e) => e,
+                Err(e) => return e,
+            })
+        } else {
+            None
+        };
+        let msg = String::from("Attempt to use return statement outside of procedure.");
+        Error {
+            msg, special: Some(Special::Return(value)), col_start: r.col_start, col_end: r.col_end, line: r.line
+        }
+    }
     // TODO: command
     // statement -> (expr | command | var | def | block | if | while | break | cont)
     fn statement(&self) -> Result<Statement, Error> {
@@ -389,6 +405,7 @@ impl Parser {
             TokType::While => self.hwile().map(|w| Statement::While(w)),
             TokType::Break => Ok(Statement::Break(self._break())),
             TokType::Continue => Ok(Statement::Continue(self._continue())),
+            TokType::Return => Ok(Statement::Return(self._return())),
             TokType::Proc => self.proc().map(|p| Statement::Proc(p)),
             _ => self.expr().map(|e| Statement::Expr(e)),
         }

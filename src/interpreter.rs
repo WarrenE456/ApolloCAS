@@ -243,8 +243,17 @@ impl ProcVal {
         }
 
         // todo remove cloning non-sense
-        scope.block(self.body.clone())?;
-        Ok(Val::Unit)
+        match scope.block(self.body.clone()) {
+            Ok(_) => Ok(Val::Unit),
+            Err(Error { special: Some(Special::Return(e)), .. }) => {
+                if let Some(e) = e {
+                    Ok(scope.expr(e)?)
+                } else {
+                    Ok(Val::Unit)
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -537,12 +546,12 @@ impl<'a> Interpreter<'a> {
                     if b {
                         // TODO remove this cloneing non-sense
                         match self.interpret((*w.body).clone()) {
-                            Err(e) => if let Some(s) = e.special {
+                            Err(e) => if let Some(s) = e.special.clone() {
                                 use Special::*;
                                 match s {
                                     Break => { break 'a },
                                     Continue => continue,
-                                    Exit(_) => { return Err(e); }
+                                    _ => { return Err(e); }
                                 }
                             } else {
                                 return Err(e);
@@ -583,6 +592,7 @@ impl<'a> Interpreter<'a> {
             Proc(p) => {self.proc(p)?; Ok(None)}
             Break(e) => Err(e),
             Continue(e) => Err(e),
+            Return(e) => Err(e),
             Command(_) => todo!(),
         };
     }

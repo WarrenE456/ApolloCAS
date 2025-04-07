@@ -1,7 +1,10 @@
-#[derive(Debug, Clone, Copy)]
+use crate::statement::Expr;
+
+#[derive(Debug, Clone)]
 pub enum Special {
     Break,
     Continue,
+    Return(Option<Expr>),
     Exit(i32),
 }
 

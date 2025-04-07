@@ -14,6 +14,7 @@ pub enum Statement {
     Proc(Proc),
     Break(Error),
     Continue(Error),
+    Return(Error),
 }
 
 #[derive(Debug, Clone)]
