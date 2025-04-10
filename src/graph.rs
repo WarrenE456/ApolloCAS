@@ -3,45 +3,64 @@ extern crate sdl2;
 use sdl2::{
     render::WindowCanvas,
     pixels::Color,
-    EventPump,
-    event::Event,
     rect::Point,
 };
+
+pub enum GraphSignal {
+    Create(String),
+}
 
 use crate::statement::Expr;
 use crate::interpreter::{Val, Interpreter};
 
-use std::sync::{Arc, RwLock};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::mpsc::Receiver;
 
-pub enum Status {
-    Running,
-    Stopped,
-}
+use std::sync::{Arc, RwLock};
 
 pub struct Grapher<'a> {
     global: Arc<RwLock<Interpreter<'a>>>,
-    graph: Graph,
+    graphs: HashMap<String, Graph>,
+    graph_rx: Receiver<GraphSignal>
 }
 
 impl<'a> Grapher<'a> {
-    pub fn new(global: Arc<RwLock<Interpreter<'a>>>) -> Self {
-        Self { global, graph: Graph::new("foo").unwrap() }
+    pub fn new(global: Arc<RwLock<Interpreter<'a>>>, graph_rx: Receiver<GraphSignal>) -> Self {
+        Self { global, graphs: HashMap::new(), graph_rx }
     }
     pub fn update(&mut self) {
-        self.graph.render(&self.global);
+        use GraphSignal::*;
+        for signal in self.graph_rx.try_iter() {
+            match signal {
+                Create(name) => {
+                    let new_graph = match Graph::new(&name) {
+                        Ok(g) => g,
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            continue;
+                        }
+                    };
+                    self.graphs.insert(name, new_graph);
+                }
+            }
+        }
+        for (_, graph) in self.graphs.iter_mut() {
+            graph.render(&self.global);
+        }
     }
 }
 
 const FILL_COLOR: Color = Color::RGB(30, 30, 30);
 
 pub struct Graph {
-    canvas: WindowCanvas,
-    event_pump: EventPump,
+    canvas: RefCell<WindowCanvas>,
     min_x: f64,
     max_x: f64,
     min_y: f64,
     max_y: f64,
-    n: usize
+    n: usize,
+    fns: Vec<Expr>,
 }
 
 impl Graph {
@@ -57,26 +76,30 @@ impl Graph {
 
         let canvas = window.into_canvas()
             .build()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())
+            .map(|c| RefCell::new(c))?;
 
-        let event_pump = sdl.event_pump()?;
-
-        Ok(Self { canvas, event_pump, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, n: 1000 })
+        Ok(Self {
+            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, n: 1000, fns: Vec::new(),
+        })
     }
     fn convert_coords(&self, x: f64, y: f64) -> (i32, i32) {
-        let (width, height) = self.canvas.window().size();
+        let (width, height) = self.canvas.borrow().window().size();
         let x: i32 = ((x - self.min_x) / (self.max_x - self.min_x) * (width as f64)) as i32;
         let y: i32 = (height as i32) - ((y - self.min_y) / (self.max_y - self.min_y) * (height as f64)) as i32;
         (x, y)
     }
-    fn draw_line(&mut self, x_1: f64, y_1: f64, x_2: f64, y_2: f64, color: Color) -> Result<(), String> {
+    fn draw_line(&self, x_1: f64, y_1: f64, x_2: f64, y_2: f64, color: Color) -> Result<(), String> {
         let (x_1, y_1) = self.convert_coords(x_1, y_1);
         let (x_2, y_2) = self.convert_coords(x_2, y_2);
-        self.canvas.set_draw_color(color);
-        self.canvas.draw_line(Point::new(x_1, y_1), Point::new(x_2, y_2))?;
+        {
+            let mut canvas = self.canvas.borrow_mut();
+            canvas.set_draw_color(color);
+            canvas.draw_line(Point::new(x_1, y_1), Point::new(x_2, y_2))?;
+        }
         Ok(())
     }
-    fn graph(&mut self, var_name: String, e: Expr, i: &Arc<RwLock<Interpreter>>) {
+    fn graph(&self, var_name: String, e: Expr, i: &Arc<RwLock<Interpreter>>) {
         let i = &i.read().unwrap();
         let scope = Interpreter::from(i);
         let dx = (self.max_x - self.min_x) / (self.n as f64);
@@ -97,32 +120,18 @@ impl Graph {
         }
     }
     // TODO remove status maybe
-    pub fn render(&mut self, i: &Arc<RwLock<Interpreter>>) -> Status {
-        self.canvas.set_draw_color(FILL_COLOR);
-        self.canvas.clear();
-
-        use crate::scanner::Scanner;
-        use crate::parser::Parser;
-        use crate::statement::Statement;
-
-        let scanner= Scanner::new("x * x * c\n".as_bytes());
-        let parser = Parser::new(scanner.scan().unwrap());
-        let e = match parser.parse().unwrap()[0].clone() {
-            Statement::Expr(e) => e,
-            _ => panic!("shit"),
-        };
-
-        self.graph(String::from("x"), e, i);
-
-        self.canvas.present();
-
-        use Status::*;
-        for event in self.event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. } => return Stopped,
-                _ => {}
-            }
+    pub fn render(&mut self, i: &Arc<RwLock<Interpreter>>) {
+        {
+            let mut canvas = self.canvas.borrow_mut();
+            canvas.set_draw_color(FILL_COLOR);
+            canvas.clear();
         }
-        Running
+
+        for e in self.fns.iter() {
+            // TODO remove cloning nonsense
+            self.graph(String::from("x"), e.clone(), i);
+        }
+
+        self.canvas.borrow_mut().present();
     }
 }

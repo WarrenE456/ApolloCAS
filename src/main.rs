@@ -8,46 +8,52 @@ pub mod environment;
 pub mod graph;
 
 use std::sync::{Arc, RwLock};
+use std::sync::mpsc::channel;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
 use apollo::Apollo;
 use interpreter::Interpreter;
-use graph::Grapher;
+use graph::{Grapher, GraphSignal};
 
 /* TODO
+*
 *
 * types
 * 'infinite' percision rational number representation
 * CAS
 *
+* Error::from
+* seperate rendering from update
 * fix error on blank lines
 * anonymous fns
 * special characters in strings
 * string ops
 * line aa
+* let lists
 * implement Error::from(msg, tok)
 * <c-d> to interupt
 *
 */
 
 fn main() {
-    let global = Arc::new(RwLock::new(Interpreter::new()));
+    let (graph_tx, graph_rx) = channel::<GraphSignal>();
 
+    let global = Arc::new(RwLock::new(Interpreter::new(graph_tx.clone())));
+    let running = Arc::new(AtomicBool::new(true));
+
+    
     let apollo_global = Arc::clone(&global);
     let apollo_handle = thread::spawn(move || {
-        let apollo = Apollo::from(apollo_global);
+        let apollo = Apollo::new(apollo_global, graph_tx);
         apollo.run();
     });
 
-    let running = Arc::new(AtomicBool::new(true));
-
     let grapher_running = Arc::clone(&running);
     let grapher_global = Arc::clone(&global);
-    thread::spawn(move || {
-        thread::sleep(Duration::from_millis(5000));
-        let mut grapher = Grapher::new(grapher_global);
+    let grapher_handle = thread::spawn(move || {
+        let mut grapher = Grapher::new(grapher_global, graph_rx);
         while grapher_running.load(Ordering::SeqCst) {
             grapher.update();
             thread::sleep(Duration::from_millis(60));
@@ -56,4 +62,5 @@ fn main() {
 
     apollo_handle.join().unwrap();
     running.store(false, Ordering::SeqCst);
+    grapher_handle.join().unwrap();
 }

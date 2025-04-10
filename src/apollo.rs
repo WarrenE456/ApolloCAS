@@ -4,11 +4,13 @@ use std::process::exit;
 use std::fs::read_to_string;
 use std::io::{stdin, stdout, Write};
 use std::sync::{Arc, RwLock};
+use std::sync::mpsc::Sender;
 
 use crate::scanner::Scanner;
 use crate::parser::Parser;
 use crate::interpreter::Interpreter;
 use crate::error::Special::Exit;
+use crate::graph::GraphSignal;
 
 fn curly_braces_closed(s: &String) -> bool {
     let s = s.as_bytes();
@@ -19,11 +21,12 @@ fn curly_braces_closed(s: &String) -> bool {
 
 pub struct Apollo<'a> {
     global: Arc<RwLock<Interpreter<'a>>>,
+    pub graph_tx: Sender<GraphSignal>,
 }
 
 impl<'a> Apollo<'a> {
-    pub fn from(global: Arc<RwLock<Interpreter<'a>>>) -> Self {
-        Self { global }
+    pub fn new(global: Arc<RwLock<Interpreter<'a>>>, graph_tx: Sender<GraphSignal>) -> Self {
+        Self { global, graph_tx }
     }
     fn repl(&self) {
         macro_rules! handle_error {

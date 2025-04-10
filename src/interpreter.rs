@@ -5,6 +5,10 @@ use crate::statement::*;
 use crate::scanner::{Tok, TokType};
 use crate::environment::Env;
 
+use crate::graph::GraphSignal;
+
+use std::sync::mpsc::Sender;
+
 #[derive(Clone)]
 pub enum Val {
     Number(f64),
@@ -59,6 +63,7 @@ enum BuiltInT {
     Cos,
     Tan,
     Exit,
+    Create,
 }
 
 impl BuiltInT {
@@ -74,6 +79,7 @@ impl BuiltInT {
             Cos => "los",
             Tan => "tan",
             Exit => "exit",
+            Create => "create",
         })
     }
 }
@@ -96,6 +102,7 @@ impl BuiltIn {
             "cos" => Cos,
             "tan" => Tan,
             "exit" => Exit,
+            "create" => Create,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -187,7 +194,7 @@ impl BuiltIn {
                 other => {
                     let msg = format!("Attempt to call the exit function with a {}. Expected a Number.", other.type_as_string());
                     Err(Error {
-                        special: None, msg, col_start: c.identifier.col_start, col_end: c.identifier.col_end, line: c.identifier.line
+                        special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
                     })
                 }
             }
@@ -195,6 +202,32 @@ impl BuiltIn {
             let msg = format!("The exit function takes 0 or 1 arguments, but {} were provided.", c.args.len());
             Err(Error {
                 special: None, msg, col_start: c.identifier.col_start, col_end: c.identifier.col_end, line: c.identifier.line
+            })
+        }
+    }
+    fn create(c: Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() == 1 {
+            // Remove this cloning
+            match i.expr(c.args[0].clone())? {
+                Val::Str(s) => {
+                    let name = String::from_utf8(s).unwrap();
+                    i.graph_tx.send(GraphSignal::Create(name)).unwrap();
+                    Ok(Val::Unit)
+                }
+                other => {
+                    let msg = format!(
+                        "Create expects a string (the name of the graph to be created) but found a {}.",
+                        other.type_as_string()
+                    );
+                    Err(Error {
+                        special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
+                    })
+                },
+            }
+        } else {
+            let msg = format!("'create' expects one argument (the graph name), but found {}.", c.args.len());
+            Err(Error {
+                special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
             })
         }
     }
@@ -210,6 +243,9 @@ impl BuiltIn {
             }
             Exit => {
                 Self::exit(c, i)
+            }
+            Create => {
+                Self::create(c, i)
             }
             _ => self.basic(c, 1, i),
         }
@@ -265,14 +301,15 @@ impl fmt::Display for Val {
 
 pub struct Interpreter<'a> {
     env: Env<'a>,
+    graph_tx: Sender<GraphSignal>
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn new() -> Self {
-        Self { env: Env::new() }
+    pub fn new(graph_tx: Sender<GraphSignal>) -> Self {
+        Self { env: Env::new(), graph_tx }
     }
     pub fn from(other: &'a Interpreter) -> Self {
-        Self { env: Env::from(&other.env) }
+        Self { env: Env::from(&other.env), graph_tx: other.graph_tx.clone() }
     }
     fn literal(&self, tok: Tok) -> Result<Val, Error> {
         use TokType::*;
