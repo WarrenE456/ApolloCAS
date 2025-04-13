@@ -6,10 +6,6 @@ use sdl2::{
     rect::Point,
 };
 
-pub enum GraphSignal {
-    Create(String),
-}
-
 use crate::statement::Expr;
 use crate::interpreter::{Val, Interpreter};
 
@@ -18,6 +14,15 @@ use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 
 use std::sync::{Arc, RwLock};
+
+pub enum GraphSignal {
+    Create(String),
+    Graph {
+        graph_name: String,
+        fn_name: String,
+        e: Expr,
+    },
+}
 
 pub struct Grapher<'a> {
     global: Arc<RwLock<Interpreter<'a>>>,
@@ -29,24 +34,33 @@ impl<'a> Grapher<'a> {
     pub fn new(global: Arc<RwLock<Interpreter<'a>>>, graph_rx: Receiver<GraphSignal>) -> Self {
         Self { global, graphs: HashMap::new(), graph_rx }
     }
+    pub fn create(&mut self, name: String) {
+        let new_graph = match Graph::new(&name) {
+            Ok(g) => g,
+            Err(e) => {
+                eprintln!("{}", e);
+                return;
+            }
+        };
+        self.graphs.insert(name, new_graph);
+    }
+    pub fn graph(&mut self, graph_name: &String, fn_name: String, e: Expr) {
+        if let Some(graph) = self.graphs.get_mut(graph_name) {
+            graph.fns.insert(fn_name, e);
+        } else {
+            eprintln!("Error: No such graph '{}'.", graph_name);
+        }
+    }
     pub fn update(&mut self) {
         use GraphSignal::*;
-        for signal in self.graph_rx.try_iter() {
-            match signal {
-                Create(name) => {
-                    let new_graph = match Graph::new(&name) {
-                        Ok(g) => g,
-                        Err(e) => {
-                            eprintln!("{}", e);
-                            continue;
-                        }
-                    };
-                    self.graphs.insert(name, new_graph);
-                }
-            }
-        }
         for (_, graph) in self.graphs.iter_mut() {
             graph.render(&self.global);
+        }
+        if let Ok(signal) = self.graph_rx.try_recv() {
+            match signal {
+                Create(name) => self.create(name),
+                Graph {graph_name, fn_name, e} => self.graph(&graph_name, fn_name, e),
+            }
         }
     }
 }
@@ -60,7 +74,7 @@ pub struct Graph {
     min_y: f64,
     max_y: f64,
     n: usize,
-    fns: Vec<Expr>,
+    fns: HashMap<String, Expr>,
 }
 
 impl Graph {
@@ -80,7 +94,7 @@ impl Graph {
             .map(|c| RefCell::new(c))?;
 
         Ok(Self {
-            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, n: 1000, fns: Vec::new(),
+            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, n: 1000, fns: HashMap::new(),
         })
     }
     fn convert_coords(&self, x: f64, y: f64) -> (i32, i32) {
@@ -99,7 +113,7 @@ impl Graph {
         }
         Ok(())
     }
-    fn graph(&self, var_name: String, e: Expr, i: &Arc<RwLock<Interpreter>>) {
+    fn graph(&self, e: Expr, i: &Arc<RwLock<Interpreter>>) {
         let i = &i.read().unwrap();
         let scope = Interpreter::from(i);
         let dx = (self.max_x - self.min_x) / (self.n as f64);
@@ -107,11 +121,11 @@ impl Graph {
         let mut x_1 = self.min_x;
         while x_1 < self.max_x {
             let x_2 = x_1 + dx;
-            let y_1 = match scope.eval_expr_at(&e, &var_name, x_1) {
+            let y_1 = match scope.eval_expr_at(&e, "x", x_1) {
                 Ok(Val::Number(v)) => v,
                 _ => continue,
             };
-            let y_2 = match scope.eval_expr_at(&e, &var_name, x_2) {
+            let y_2 = match scope.eval_expr_at(&e, "x", x_2) {
                 Ok(Val::Number(v)) => v,
                 _ => continue,
             };
@@ -127,9 +141,9 @@ impl Graph {
             canvas.clear();
         }
 
-        for e in self.fns.iter() {
+        for (_, e) in self.fns.iter() {
             // TODO remove cloning nonsense
-            self.graph(String::from("x"), e.clone(), i);
+            self.graph(e.clone(), i);
         }
 
         self.canvas.borrow_mut().present();

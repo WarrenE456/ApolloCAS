@@ -64,6 +64,7 @@ enum BuiltInT {
     Tan,
     Exit,
     Create,
+    Graph,
 }
 
 impl BuiltInT {
@@ -80,6 +81,7 @@ impl BuiltInT {
             Tan => "tan",
             Exit => "exit",
             Create => "create",
+            Graph => "graph",
         })
     }
 }
@@ -103,6 +105,7 @@ impl BuiltIn {
             "tan" => Tan,
             "exit" => Exit,
             "create" => Create,
+            "graph" => Graph,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -216,7 +219,7 @@ impl BuiltIn {
                 }
                 other => {
                     let msg = format!(
-                        "Create expects a string (the name of the graph to be created) but found a {}.",
+                        "'create' expects a string (the name of the graph to be created) but found a {}.",
                         other.type_as_string()
                     );
                     Err(Error {
@@ -226,6 +229,35 @@ impl BuiltIn {
             }
         } else {
             let msg = format!("'create' expects one argument (the graph name), but found {}.", c.args.len());
+            Err(Error {
+                special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
+            })
+        }
+    }
+    fn graph(c: Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() == 3 {
+            let graph_name = i.expr(c.args[0].clone())?;
+            let fn_name = i.expr(c.args[1].clone())?;
+            let e = c.args[2].clone();
+            match (graph_name, fn_name) {
+                (Val::Str(graph_name), Val::Str(fn_name)) => {
+                    let graph_name = String::from_utf8(graph_name).unwrap();
+                    let fn_name = String::from_utf8(fn_name).unwrap();
+                    i.graph_tx.send(GraphSignal::Graph{ graph_name, fn_name, e}).unwrap();
+                    Ok(Val::Unit)
+                }
+                (other1, other2) => {
+                    let msg = format!(
+                        "'graph' expects a 2 strings (the name of the graph and function) and an expression but found a {} and {}.",
+                        other1.type_as_string(), other2.type_as_string(),
+                    );
+                    Err(Error {
+                        special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
+                    })
+                },
+            }
+        } else {
+            let msg = format!("'graph' expects three argument (graph name, function name, expression), but found {}.", c.args.len());
             Err(Error {
                 special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
             })
@@ -241,12 +273,9 @@ impl BuiltIn {
                 println!("");
                 Ok(Val::Unit)
             }
-            Exit => {
-                Self::exit(c, i)
-            }
-            Create => {
-                Self::create(c, i)
-            }
+            Exit => Self::exit(c, i),
+            Create => Self::create(c, i),
+            Graph => Self::graph(c, i),
             _ => self.basic(c, 1, i),
         }
     }
