@@ -3,7 +3,10 @@ extern crate sdl2;
 use sdl2::{
     render::WindowCanvas,
     pixels::Color,
+    EventPump,
+    event::{WindowEvent, Event},
     rect::Point,
+    VideoSubsystem,
 };
 
 use crate::statement::Expr;
@@ -25,27 +28,34 @@ pub enum GraphSignal {
 }
 
 pub struct Grapher<'a> {
+    v_sub: VideoSubsystem,
+    event_pump: EventPump,
     global: Arc<RwLock<Interpreter<'a>>>,
-    graphs: HashMap<String, Graph>,
+    name_to_id: HashMap<String, u32>,
+    graphs: HashMap<u32, Graph>,
     graph_rx: Receiver<GraphSignal>
 }
 
 impl<'a> Grapher<'a> {
     pub fn new(global: Arc<RwLock<Interpreter<'a>>>, graph_rx: Receiver<GraphSignal>) -> Self {
-        Self { global, graphs: HashMap::new(), graph_rx }
+        let sdl2 = sdl2::init().unwrap();
+        let v_sub = sdl2.video().unwrap();
+        let event_pump = sdl2.event_pump().unwrap();
+        Self { global, graphs: HashMap::new(), graph_rx, v_sub, event_pump, name_to_id: HashMap::new() }
     }
     pub fn create(&mut self, name: String) {
-        let new_graph = match Graph::new(&name) {
-            Ok(g) => g,
-            Err(e) => {
+        let (id, new_graph) = match self.gen_new_window(&name).map(|window| Graph::new(window)) {
+            Ok(Ok(g)) => g,
+            Err(e) | Ok(Err(e)) => {
                 eprintln!("{}", e);
                 return;
             }
         };
-        self.graphs.insert(name, new_graph);
+        self.name_to_id.insert(name, id);
+        self.graphs.insert(id, new_graph);
     }
     pub fn graph(&mut self, graph_name: &String, fn_name: String, e: Expr) {
-        if let Some(graph) = self.graphs.get_mut(graph_name) {
+        if let Some(graph) = self.name_to_id.get(graph_name).map(|id| self.graphs.get_mut(id)).flatten() {
             graph.fns.insert(fn_name, e);
         } else {
             eprintln!("Error: No such graph '{}'.", graph_name);
@@ -53,6 +63,18 @@ impl<'a> Grapher<'a> {
     }
     pub fn update(&mut self) {
         use GraphSignal::*;
+        for event in self.event_pump.poll_iter() {
+            match event {
+                Event::Window { 
+                    window_id: id,
+                    win_event: WindowEvent::Resized(w, h),
+                    ..
+                } => {
+                    self.graphs.get_mut(&id).map(|g| g.set_dim(w as u32, h as u32));
+                }
+                _ => {}
+            }
+        }
         for (_, graph) in self.graphs.iter_mut() {
             graph.render(&self.global);
         }
@@ -63,12 +85,24 @@ impl<'a> Grapher<'a> {
             }
         }
     }
+    fn gen_new_window(&self, name: &str) -> Result<sdl2::video::Window, String> {
+        let window = self.v_sub.window(name, 400, 500)
+            .position_centered()
+            .resizable()
+            .opengl()
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        Ok(window)
+    }
 }
 
 const FILL_COLOR: Color = Color::RGB(30, 30, 30);
 
 pub struct Graph {
     canvas: RefCell<WindowCanvas>,
+    width: u32,
+    height: u32,
     min_x: f64,
     max_x: f64,
     min_y: f64,
@@ -78,29 +112,27 @@ pub struct Graph {
 }
 
 impl Graph {
-    pub fn new(graph_name: &str) -> Result<Self, String> {
-        let sdl = sdl2::init()?;
-        let video_sub = sdl.video()?;
-
-        let window = video_sub.window(graph_name, 400, 500)
-            .position_centered()
-            .opengl()
-            .build()
-            .map_err(|e| e.to_string())?;
+    pub fn set_dim(&mut self, width: u32, height: u32) {
+        self.width = width;
+        self.height = height;
+    }
+    pub fn new(window: sdl2::video::Window) -> Result<(u32, Self), String> {
+        let id = window.id();
 
         let canvas = window.into_canvas()
             .build()
             .map_err(|e| e.to_string())
             .map(|c| RefCell::new(c))?;
 
-        Ok(Self {
-            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, n: 1000, fns: HashMap::new(),
-        })
+        let (width, height) = canvas.borrow().window().size();
+
+        Ok((id, Self {
+            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, n: 1000, fns: HashMap::new(), width, height
+        }))
     }
     fn convert_coords(&self, x: f64, y: f64) -> (i32, i32) {
-        let (width, height) = self.canvas.borrow().window().size();
-        let x: i32 = ((x - self.min_x) / (self.max_x - self.min_x) * (width as f64)) as i32;
-        let y: i32 = (height as i32) - ((y - self.min_y) / (self.max_y - self.min_y) * (height as f64)) as i32;
+        let x: i32 = ((x - self.min_x) / (self.max_x - self.min_x) * (self.width as f64)) as i32;
+        let y: i32 = (self.height as i32) - ((y - self.min_y) / (self.max_y - self.min_y) * (self.height as f64)) as i32;
         (x, y)
     }
     fn draw_line(&self, x_1: f64, y_1: f64, x_2: f64, y_2: f64, color: Color) -> Result<(), String> {

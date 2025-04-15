@@ -20,6 +20,8 @@ use graph::{Grapher, GraphSignal};
 /* TODO
 *
 *
+* fix window resize issue
+* fix segfault
 * types
 * 'infinite' percision rational number representation
 * CAS
@@ -58,6 +60,7 @@ fn main() {
             grapher.update();
             thread::sleep(Duration::from_millis(60));
         }
+        println!("Exiting");
     });
 
     apollo_handle.join().unwrap();
