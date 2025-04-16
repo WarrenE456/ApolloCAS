@@ -24,6 +24,7 @@ pub struct Command {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Tok),
+    Arr(Vec<Expr>),
     Group(Box<Expr>),
     Binary(Binary),
     Negate(Negate),
@@ -68,6 +69,7 @@ impl Expr {
             }
             And(a) => format!("{} and {}", a.right.to_string(), a.left.to_string()),
             Or(o) => format!("{} or {}", o.right.to_string(), o.left.to_string()),
+            Arr(a) => format!("[{}]", a.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
         }
     }
 }

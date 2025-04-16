@@ -18,6 +18,7 @@ pub enum Val {
     Unit,
     Proc(ProcVal),
     Str(Vec<u8>),
+    Arr(Vec<Val>),
 }
 
 impl Val {
@@ -32,6 +33,13 @@ impl Val {
             // TODO print types
             Proc(_) => String::from("<procedure>"),
             Str(s) => String::from_utf8(s.clone()).unwrap(),
+            Arr(a) => {
+                let s = a.iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("[{}]", s)
+            },
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -45,6 +53,7 @@ impl Val {
             // TODO print types
             Proc(_) => "Procedure",
             Str(_) => "String",
+            Arr(_) => "Array",
         })
     }
 }
@@ -449,6 +458,7 @@ impl<'a> Interpreter<'a> {
                     Error { special: None, msg: format!("Attempt to use function calling notation on a Bool."), col_start, col_end, line }
                 );
             }
+            Val::Arr(_) => unreachable!(),
             Val::BuiltIn(_) => unreachable!(),
             Val::Unit => unreachable!(),
             Val::Str(_) => unreachable!(),
@@ -543,6 +553,13 @@ impl<'a> Interpreter<'a> {
             }
         }
     }
+    fn arr(&self, elements: Vec<Expr>) -> Result<Val, Error> {
+        let mut vals = Vec::new();
+        for element in elements {
+            vals.push(self.expr(element)?);
+        }
+        Ok(Val::Arr(vals))
+    }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         use Expr::*;
         return match e {
@@ -555,6 +572,7 @@ impl<'a> Interpreter<'a> {
             Comp(c) => self.comp(c),
             Or(o) => self.or(o),
             And(a) => self.and(a),
+            Arr(a) => self.arr(a),
         };
     }
     pub fn eval_expr_at(&self, e: &Expr, var_name: &str, var: f64) -> Result<Val, Error> {

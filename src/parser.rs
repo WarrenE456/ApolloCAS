@@ -21,9 +21,10 @@
 * factor -> negate (('*' | '/') negate)*
 * negate -> '-'? expo
 * expo -> group ('^' expo)?
-* group -> '(' expr ')' | primary
+* group -> '(' expr ')' | call
 * call -> IDENTIFIER args_list
-* primary -> NUMBER | (IDENTIFIER | call) | BOOL
+* primary -> NUMBER | (IDENTIFIER | call) | BOOL | arr
+* arr -> '[' (expr (',' expr )* )? ']'
 *
 * command -> ':' command arg*
 * 
@@ -102,7 +103,24 @@ impl Parser {
         let args = self.args_list()?;
         Ok(Expr::Call(Call { identifier, args, rparen: self.toks[self.cur.get() - 1].clone() }))
     }
-    // primary -> NUMBER | (IDENTIFIER | call) | BOOL
+    // arr -> '[' ( expr (',' expr )* )? ']'
+    fn arr(&self) -> Result<Expr, Error> {
+        if self.is_match(TokType::RBrac) {
+            let _ = self.advance();
+            return Ok(Expr::Arr(Vec::new()))
+        }
+
+        let mut elements = vec![self.expr()?];
+        while !self.is_match(TokType::RBrac) {
+            self.expect(TokType::Comma, String::from("Expected comma or right bracket after array element."))?;
+            self.advance();
+            elements.push(self.expr()?);
+        }
+        let _ = self.advance();
+
+        Ok(Expr::Arr(elements))
+    }
+    // primary -> NUMBER | (IDENTIFIER | call) | BOOL | arr
     fn primary(&self) -> Result<Expr, Error> {
         let next = self.advance().clone();
         let lexeme = if next.lexeme.as_bytes().get(0).map(|c| *c == b'\n').unwrap_or(false) {
@@ -124,6 +142,7 @@ impl Parser {
             TokType::Str => {
                 Ok(Expr::Literal(next))
             }
+            TokType::LBrac => self.arr(),
             _ => return Err(Error {
                 msg: format!("Expected a number or variable, instead found {}.", lexeme),
                 line: next.line, col_start: next.col_start, col_end: next.col_end,
