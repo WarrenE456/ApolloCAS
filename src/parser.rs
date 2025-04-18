@@ -20,7 +20,8 @@
 * term -> factor (('+' | '-') factor)*
 * factor -> negate (('*' | '/') negate)*
 * negate -> '-'? expo
-* expo -> group ('^' expo)?
+* expo -> index ('^' expo )?
+* index -> group ('[' expr ']')*
 * group -> '(' expr ')' | call
 * call -> IDENTIFIER args_list
 * primary -> NUMBER | (IDENTIFIER | call) | BOOL | arr
@@ -162,9 +163,21 @@ impl Parser {
             self.primary()
         }
     }
-    // expo -> group ('^' expo)?
-    fn expo(&self) -> Result<Expr, Error> {
+    // index -> group ('[' expr ']')*
+    fn index(&self) -> Result<Expr, Error> {
         let mut expr = self.group()?;
+        while self.is_match(TokType::LBrac) {
+            let lb = self.advance().clone();
+            let index = Box::new(self.expr()?);
+            self.expect(TokType::RBrac, String::from("Expected closing bracket after index."))?;
+            let rb = self.advance().clone();
+            expr = Expr::Index(Index { expr: Box::new(expr), lb, index, rb });
+        }
+        Ok(expr)
+    }
+    // expo -> index ('^' expo )?
+    fn expo(&self) -> Result<Expr, Error> {
+        let mut expr = self.index()?;
         if self.is_match(TokType::Carrot) {
             let op = self.advance().clone();
             let power = Box::new(self.expo()?);

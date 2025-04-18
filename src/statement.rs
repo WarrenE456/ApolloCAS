@@ -33,6 +33,7 @@ pub enum Expr {
     Comp(Comp),
     Or(Or),
     And(And),
+    Index(Index),
 }
 
 impl Expr {
@@ -70,6 +71,7 @@ impl Expr {
             And(a) => format!("{} and {}", a.right.to_string(), a.left.to_string()),
             Or(o) => format!("{} or {}", o.right.to_string(), o.left.to_string()),
             Arr(a) => format!("[{}]", a.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
+            Index(i) => i.expr.to_string() + &i.index.to_string(),
         }
     }
 }
@@ -128,6 +130,13 @@ pub struct And {
     pub right: Box<Expr>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Index {
+    pub expr: Box<Expr>,
+    pub lb: Tok,
+    pub index: Box<Expr>,
+    pub rb: Tok,
+}
 
 #[derive(Debug, Clone)]
 pub struct Var {

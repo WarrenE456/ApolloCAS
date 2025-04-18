@@ -56,6 +56,35 @@ impl Val {
             Arr(_) => "Array",
         })
     }
+    fn gen_out_of_range_error(index: &Index, idx: usize, len: usize) -> Error {
+        let msg = format!("Index out of bounds. Indexed location {} with object of length {}.", idx, len);
+        Error { special: None,
+            msg, line: index.lb.line, col_start: index.lb.col_start, col_end: index.rb.col_end
+        }
+    }
+    pub fn index(&self, idx: usize, index: &Index) -> Result<Val, Error> {
+        use Val::*;
+        match self {
+            Arr(a) => {
+                if idx >= a.len() {
+                    return Err(Self::gen_out_of_range_error(index, idx, a.len()));
+                }
+                return Ok(a[idx].clone());
+            }
+            Str(s) => {
+                if idx >= s.len() {
+                    return Err(Self::gen_out_of_range_error(index, idx, s.len()));
+                }
+                return Ok(Val::Str(vec![s[idx]]));
+            }
+            other => {
+                let msg = format!("Attempt to index into a {}.", other.type_as_string());
+                Err(Error { special: None,
+                    msg, line: index.lb.line, col_end: index.rb.col_end, col_start: index.lb.col_start
+                })
+            }
+        }
+    }
 }
 
 
@@ -560,6 +589,20 @@ impl<'a> Interpreter<'a> {
         }
         Ok(Val::Arr(vals))
     }
+    fn index(&self, i: Index) -> Result<Val, Error> {
+        // TODO remove cloning
+        let idx = match self.expr((*i.index).clone())? {
+            Val::Number(n) => n as usize,
+            other => {
+                let msg = format!("Attempted to use value of type {} as an index.", other.type_as_string());
+                return Err(Error{ special: None,
+                    msg, line: i.rb.line, col_start: i.lb.col_start, col_end: i.rb.col_end
+                });
+            },
+        };
+        // TODO remove cloning
+        self.expr(*(i.expr).clone())?.index(idx, &i)
+    }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         use Expr::*;
         return match e {
@@ -573,6 +616,7 @@ impl<'a> Interpreter<'a> {
             Or(o) => self.or(o),
             And(a) => self.and(a),
             Arr(a) => self.arr(a),
+            Index(i) => self.index(i),
         };
     }
     pub fn eval_expr_at(&self, e: &Expr, var_name: &str, var: f64) -> Result<Val, Error> {
