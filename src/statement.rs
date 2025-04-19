@@ -6,6 +6,7 @@ pub enum Statement {
     Command(Command),
     Var(Var),
     Set(Set),
+    SetIndex(SetIndex),
     Def(Def),
     Expr(Expr),
     Block(Block),
@@ -148,6 +149,13 @@ pub struct Var {
 #[derive(Debug, Clone)]
 pub struct Set {
     pub identifier: Tok,
+    pub op: Tok,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetIndex {
+    pub index: Index,
     pub op: Tok,
     pub value: Expr,
 }

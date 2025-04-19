@@ -1,13 +1,13 @@
-use std::fmt;
-
 use crate::error::{Error, Special};
 use crate::statement::*;
 use crate::scanner::{Tok, TokType};
 use crate::environment::Env;
+use crate::heap::{Heap, HeapVal};
 
 use crate::graph::GraphSignal;
 
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub enum Val {
@@ -17,12 +17,12 @@ pub enum Val {
     Bool(bool),
     Unit,
     Proc(ProcVal),
-    Str(Vec<u8>),
-    Arr(Vec<Val>),
+    Str(u64),
+    Arr(u64),
 }
 
 impl Val {
-    pub fn as_string(&self) -> String {
+    pub fn to_string(&self, h: &Heap) -> String {
         use Val::*;
         match self {
             Number(n) => format!("{}", n),
@@ -32,14 +32,8 @@ impl Val {
             Bool(b) => String::from(if *b { "true" } else { "false" }),
             // TODO print types
             Proc(_) => String::from("<procedure>"),
-            Str(s) => String::from_utf8(s.clone()).unwrap(),
-            Arr(a) => {
-                let s = a.iter()
-                    .map(|a| a.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("[{}]", s)
-            },
+            Str(addr) => h.to_string(*addr),
+            Arr(addr) => h.to_string(*addr),
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -62,28 +56,34 @@ impl Val {
             msg, line: index.lb.line, col_start: index.lb.col_start, col_end: index.rb.col_end
         }
     }
-    pub fn index(&self, idx: usize, index: &Index) -> Result<Val, Error> {
-        use Val::*;
-        match self {
-            Arr(a) => {
-                if idx >= a.len() {
-                    return Err(Self::gen_out_of_range_error(index, idx, a.len()));
-                }
-                return Ok(a[idx].clone());
-            }
-            Str(s) => {
-                if idx >= s.len() {
-                    return Err(Self::gen_out_of_range_error(index, idx, s.len()));
-                }
-                return Ok(Val::Str(vec![s[idx]]));
-            }
-            other => {
-                let msg = format!("Attempt to index into a {}.", other.type_as_string());
-                Err(Error { special: None,
-                    msg, line: index.lb.line, col_end: index.rb.col_end, col_start: index.lb.col_start
-                })
-            }
-        }
+    pub fn index(&mut self, idx: usize, index: &Index, val: Option<Val>) -> Result<Val, Error> {
+        todo!()
+        // use Val::*;
+        // match self {
+        //     Arr(a) => {
+        //         if idx >= a.len() {
+        //             return Err(Self::gen_out_of_range_error(index, idx, a.len()));
+        //         }
+        //         return if let Some(val) = val {
+        //             a[idx] = val; 
+        //             Ok(Val::Unit)
+        //         } else {
+        //             Ok(a[idx].clone())
+        //         };
+        //     }
+        //     Str(s) => {
+        //         if idx >= s.len() {
+        //             return Err(Self::gen_out_of_range_error(index, idx, s.len()));
+        //         }
+        //         return Ok(Val::Str(vec![s[idx]]));
+        //     }
+        //     other => {
+        //         let msg = format!("Attempt to index into a {}.", other.type_as_string());
+        //         Err(Error { special: None,
+        //             msg, line: index.lb.line, col_end: index.rb.col_end, col_start: index.lb.col_start
+        //         })
+        //     }
+        // }
     }
 }
 
@@ -189,7 +189,7 @@ impl BuiltIn {
     fn print(c: Call, i: &Interpreter) -> Result<Val, Error> {
         for arg in c.args.iter() {
             let v = i.expr(arg.clone())?;
-            print!("{}", v.to_string());
+            print!("{}", v.to_string(&i.heap));
         }
         Ok(Val::Unit)
     }
@@ -250,8 +250,8 @@ impl BuiltIn {
         if c.args.len() == 1 {
             // Remove this cloning
             match i.expr(c.args[0].clone())? {
-                Val::Str(s) => {
-                    let name = String::from_utf8(s).unwrap();
+                Val::Str(addr) => {
+                    let name = i.heap.to_string(addr);
                     i.graph_tx.send(GraphSignal::Create(name)).unwrap();
                     Ok(Val::Unit)
                 }
@@ -278,9 +278,9 @@ impl BuiltIn {
             let fn_name = i.expr(c.args[1].clone())?;
             let e = c.args[2].clone();
             match (graph_name, fn_name) {
-                (Val::Str(graph_name), Val::Str(fn_name)) => {
-                    let graph_name = String::from_utf8(graph_name).unwrap();
-                    let fn_name = String::from_utf8(fn_name).unwrap();
+                (Val::Str(graph_addr), Val::Str(fn_addr)) => {
+                    let graph_name = i.heap.to_string(graph_addr);
+                    let fn_name = i.heap.to_string(fn_addr);
                     i.graph_tx.send(GraphSignal::Graph{ graph_name, fn_name, e}).unwrap();
                     Ok(Val::Unit)
                 }
@@ -360,23 +360,18 @@ impl ProcVal {
     }
 }
 
-impl fmt::Display for Val {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_string())
-    }
-}
-
 pub struct Interpreter<'a> {
     env: Env<'a>,
-    graph_tx: Sender<GraphSignal>
+    graph_tx: Sender<GraphSignal>,
+    pub heap: Arc<Heap>,
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn new(graph_tx: Sender<GraphSignal>) -> Self {
-        Self { env: Env::new(), graph_tx }
+    pub fn new(graph_tx: Sender<GraphSignal>, heap: Arc<Heap>) -> Self {
+        Self { env: Env::new(), graph_tx, heap }
     }
     pub fn from(other: &'a Interpreter) -> Self {
-        Self { env: Env::from(&other.env), graph_tx: other.graph_tx.clone() }
+        Self { env: Env::from(&other.env), graph_tx: other.graph_tx.clone(), heap: Arc::clone(&other.heap) }
     }
     fn literal(&self, tok: Tok) -> Result<Val, Error> {
         use TokType::*;
@@ -384,7 +379,10 @@ impl<'a> Interpreter<'a> {
             Number => Ok(Val::Number(tok.lexeme.parse().unwrap())),
             True => Ok(Val::Bool(true)),
             False => Ok(Val::Bool(false)),
-            Str => Ok(Val::Str(Vec::from(tok.lexeme.as_bytes()))),
+            Str => {
+                let addr = self.heap.alloc(HeapVal::Str(Vec::from(tok.lexeme.as_bytes())));
+                Ok(Val::Str(addr))
+            }
             Identifier => self.env.get(&tok),
             _ => unreachable!(),
         }
@@ -587,21 +585,23 @@ impl<'a> Interpreter<'a> {
         for element in elements {
             vals.push(self.expr(element)?);
         }
-        Ok(Val::Arr(vals))
+        let addr = self.heap.alloc(HeapVal::Arr(vals));
+        Ok(Val::Arr(addr))
     }
-    fn index(&self, i: Index) -> Result<Val, Error> {
-        // TODO remove cloning
-        let idx = match self.expr((*i.index).clone())? {
-            Val::Number(n) => n as usize,
+    fn get_index(&self, i: &Index) -> Result<usize, Error> {
+        match self.expr((*i.index).clone())? {
+            Val::Number(n) => Ok(n as usize),
             other => {
                 let msg = format!("Attempted to use value of type {} as an index.", other.type_as_string());
                 return Err(Error{ special: None,
                     msg, line: i.rb.line, col_start: i.lb.col_start, col_end: i.rb.col_end
-                });
+                })
             },
-        };
+        }
+    }
+    fn index(&self, i: Index) -> Result<Val, Error> {
         // TODO remove cloning
-        self.expr(*(i.expr).clone())?.index(idx, &i)
+        self.expr(*(i.expr).clone())?.index(self.get_index(&i)?, &i, None)
     }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         use Expr::*;
@@ -703,12 +703,18 @@ impl<'a> Interpreter<'a> {
     fn proc(&self, p: Proc) -> Result<(), Error> {
         self.env.def(p.name.clone(), Val::Proc(ProcVal::from(p)))
     }
+    fn set_index(&self, s: SetIndex) -> Result<(), Error> {
+        // todo remove clone
+        self.expr((*s.index.expr).clone())?.index(self.get_index(&s.index)?, &s.index.clone(), Some(Val::Unit))?;
+        Ok(())
+    }
     pub fn interpret(&'a self, stmt: Statement) -> Result<Option<Val>, Error> {
         use Statement::*;
         return match stmt {
             Expr(e) => self.expr(e).map(|e| Some(e)),
             Var(a) => {self.var(a)?; Ok(None)}
             Set(s) => {self.set(s)?; Ok(None)}
+            SetIndex(s) => {self.set_index(s)?; Ok(None)}
             Def(d) => {self.def(d)?; Ok(None)}
             If(i) => {self.eif(i)?; Ok(None)}
             Block(b) => {

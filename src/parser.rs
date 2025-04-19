@@ -6,7 +6,7 @@
                  return )
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
-* set -> 'set' IDENTIFIER '=' expr
+* set -> 'set' IDENTIFIER (('[' expr ']')* '[' expr ']')? '=' expr
 * if -> 'if' expr block ('else' (block | if))?
 * while -> 'while' expr block
 * proc -> 'proc' IDENTIFIER '(' (IDENTIFIER ( ',' IDENTIFIER )*)? ')' block
@@ -271,14 +271,32 @@ impl Parser {
         let value = self.expr()?;
         Ok(Var { identifier, op, value })
     }
-    // set -> 'set' IDENTIFIER '=' expr
-    fn set(&self) -> Result<Set, Error> {
-        let _ = self.advance();
-        let identifier = self.advance().clone();
+    fn set_helper(&self) -> Result<(Tok, Expr), Error> {
         self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
         let op = self.advance().clone();
         let value = self.expr()?;
-        Ok(Set { identifier, op, value })
+        Ok((op, value))
+    }
+    // set -> 'set' (index | IDENTIFIER) '=' expr
+    fn set(&self) -> Result<Statement, Error> {
+        let set = self.advance();
+        let target = self.index()?;
+        match target {
+            Expr::Literal(identifier) => {
+                let (op, value) = self.set_helper()?;
+                Ok(Statement::Set(Set { identifier, op, value }))
+            }
+            Expr::Index(index) => {
+                let (op, value) = self.set_helper()?;
+                Ok(Statement::SetIndex(SetIndex { index, op, value }))
+            },
+            _ => {
+                let msg = String::from("Expected identifier after 'set' but found expression.");
+                Err(Error{ special: None,
+                    msg, line: set.line, col_start: set.col_start, col_end: set.col_end
+                })
+            }
+        }
     }
     // params_list -> '(' IDENTIFIER (',' IDENTIFIER)* ')'
     pub fn params_list(&self) -> Result<Vec<String>, Error> {
@@ -430,7 +448,7 @@ impl Parser {
     fn statement(&self) -> Result<Statement, Error> {
         match self.peek().t {
             TokType::Let => self.var().map(|a| Statement::Var(a)),
-            TokType::Set => self.set().map(|s| Statement::Set(s)),
+            TokType::Set => self.set(),
             TokType::Def => self.def().map(|d| Statement::Def(d)),
             TokType::LCurly => self.block().map(|b| Statement::Block(b)),
             TokType::If => self.eif().map(|i| Statement::If(i)),

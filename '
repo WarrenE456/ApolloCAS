@@ -16,7 +16,6 @@ use std::time::Duration;
 
 use apollo::Apollo;
 use interpreter::Interpreter;
-use heap::Heap;
 use graph::{Grapher, GraphSignal};
 
 /* TODO
@@ -44,8 +43,7 @@ use graph::{Grapher, GraphSignal};
 fn main() {
     let (graph_tx, graph_rx) = channel::<GraphSignal>();
 
-    let heap = Arc::new(Heap::new());
-    let global = Arc::new(RwLock::new(Interpreter::new(graph_tx.clone(), heap)));
+    let global = Arc::new(RwLock::new(Interpreter::new(graph_tx.clone())));
     let running = Arc::new(AtomicBool::new(true));
 
     
