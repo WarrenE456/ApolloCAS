@@ -25,10 +25,6 @@ impl Heap {
     }
     pub fn to_string(&self, id: u64) -> String {
         let reader = self.mem.read().unwrap();
-        // TODO remove
-        {
-            println!("ID: {}\n COUNTER: {}", id, self.counter.load(SeqCst));
-        }
         let v = reader.get(&id).unwrap();
         match v {
             HeapVal::Str(s) => {
