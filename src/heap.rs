@@ -23,6 +23,24 @@ impl Heap {
     pub fn get(&self, id: u64) -> Option<HeapVal> {
         self.mem.read().unwrap().get(&id).map(|v| (*v).clone())
     }
+    pub fn get_at(&self, id: u64, idx: usize) -> Option<Val> {
+        self.mem.read().unwrap().get(&id).map(|v| match v {
+            HeapVal::Arr(arr) => arr[idx].clone(),
+            HeapVal::Str(s) => Val::Char(s[idx]),
+        })
+    }
+    pub fn set_arr(&self, id: u64, idx: usize, v: Val) {
+        self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
+            HeapVal::Arr(arr) => arr[idx] = v,
+            _ => unreachable!(),
+        });
+    }
+    pub fn set_str(&self, id: u64, idx: usize, c: u8) {
+        self.mem.write().unwrap().get_mut(&id).map(|str| match str {
+            HeapVal::Str(str) => str[idx] = c,
+            _ => unreachable!(),
+        });
+    }
     pub fn to_string(&self, id: u64) -> String {
         let reader = self.mem.read().unwrap();
         let v = reader.get(&id).unwrap();
@@ -37,6 +55,14 @@ impl Heap {
                     .join(", ");
                 format!("[{}]", s)
             }
+        }
+    }
+    pub fn len(&self, id: u64) -> usize {
+        let reader = self.mem.read().unwrap();
+        let v = reader.get(&id).unwrap();
+        match v {
+            HeapVal::Str(s) => s.len(),
+            HeapVal::Arr(a) => a.len(),
         }
     }
     pub fn alloc(&self, val: HeapVal) -> u64 {

@@ -19,6 +19,7 @@ pub enum Val {
     Proc(ProcVal),
     Str(u64),
     Arr(u64),
+    Char(u8),
 }
 
 impl Val {
@@ -34,6 +35,7 @@ impl Val {
             Proc(_) => String::from("<procedure>"),
             Str(addr) => h.to_string(*addr),
             Arr(addr) => h.to_string(*addr),
+            Char(c) => c.to_string(),
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -44,10 +46,10 @@ impl Val {
             BuiltIn(_) => "BuiltIn",
             Unit => "Unit",
             Bool(_) => "Bool",
-            // TODO print types
             Proc(_) => "Procedure",
             Str(_) => "String",
             Arr(_) => "Array",
+            Char(_) => "Char",
         })
     }
     fn gen_out_of_range_error(index: &Index, idx: usize, len: usize) -> Error {
@@ -56,34 +58,49 @@ impl Val {
             msg, line: index.lb.line, col_start: index.lb.col_start, col_end: index.rb.col_end
         }
     }
-    pub fn index(&mut self, idx: usize, index: &Index, val: Option<Val>) -> Result<Val, Error> {
-        todo!()
-        // use Val::*;
-        // match self {
-        //     Arr(a) => {
-        //         if idx >= a.len() {
-        //             return Err(Self::gen_out_of_range_error(index, idx, a.len()));
-        //         }
-        //         return if let Some(val) = val {
-        //             a[idx] = val; 
-        //             Ok(Val::Unit)
-        //         } else {
-        //             Ok(a[idx].clone())
-        //         };
-        //     }
-        //     Str(s) => {
-        //         if idx >= s.len() {
-        //             return Err(Self::gen_out_of_range_error(index, idx, s.len()));
-        //         }
-        //         return Ok(Val::Str(vec![s[idx]]));
-        //     }
-        //     other => {
-        //         let msg = format!("Attempt to index into a {}.", other.type_as_string());
-        //         Err(Error { special: None,
-        //             msg, line: index.lb.line, col_end: index.rb.col_end, col_start: index.lb.col_start
-        //         })
-        //     }
-        // }
+    pub fn index(&self, idx: usize, index: &Index, val: Option<Val>, h: &Heap) -> Result<Val, Error> {
+        use Val::*;
+        match self {
+            Arr(addr) => {
+                let len = h.len(*addr);
+                if idx >= len {
+                    return Err(Self::gen_out_of_range_error(index, idx, len));
+                }
+                return if let Some(val) = val {
+                    h.set_arr(*addr, idx, val);
+                    Ok(Val::Unit)
+                } else {
+                    Ok(h.get_at(*addr, idx).unwrap())
+                };
+            }
+            Str(addr) => {
+                if idx >= h.len(*addr) {
+                    return Err(Self::gen_out_of_range_error(index, idx, h.len(*addr)));
+                }
+                return if let Some(val) = val {
+                    match val {
+                        Val::Char(c) => {
+                            h.set_str(*addr, idx, c);
+                            Ok(Val::Unit)
+                        }
+                        other => {
+                            let msg = format!("Attempt to set string element to non-Char value of type {}.", other.type_as_string());
+                            Err(Error { special: None,
+                                msg, col_start: index.lb.col_start, col_end: index.rb.col_end, line: index.lb.line
+                            })
+                        }
+                    }
+                } else {
+                    Ok(h.get_at(*addr, idx).unwrap())
+                };
+            }
+            other => {
+                let msg = format!("Attempt to index into a {}.", other.type_as_string());
+                Err(Error { special: None,
+                    msg, line: index.lb.line, col_end: index.rb.col_end, col_start: index.lb.col_start
+                })
+            }
+        }
     }
 }
 
@@ -450,14 +467,6 @@ impl<'a> Interpreter<'a> {
             Val::Proc(p) => {
                 p.call(c, self)
             }
-            Val::Number(_) => {
-                let col_start = c.identifier.col_start;
-                let col_end = c.identifier.col_end;
-                let line = c.identifier.line;
-                return Err(
-                    Error { special: None, msg: format!("Attempt to use function calling notation on a Number."), col_start, col_end, line }
-                );
-            }
             Val::Function(params, body) => {
                 if c.args.len() != params.len() {
                     let col_start = c.identifier.col_start;
@@ -477,18 +486,27 @@ impl<'a> Interpreter<'a> {
                 }
                 scope.expr(body)
             }
-            Val::Bool(_) => {
+            other => {
                 let col_start = c.identifier.col_start;
                 let col_end = c.identifier.col_end;
                 let line = c.identifier.line;
-                return Err(
-                    Error { special: None, msg: format!("Attempt to use function calling notation on a Bool."), col_start, col_end, line }
-                );
+                return Err(Error { special: None,
+                    msg: format!("Attempt to use function calling notation on a {}.", other.type_as_string()), col_start, col_end, line
+                });
             }
-            Val::Arr(_) => unreachable!(),
-            Val::BuiltIn(_) => unreachable!(),
-            Val::Unit => unreachable!(),
-            Val::Str(_) => unreachable!(),
+            // Val::Bool(_) => {
+            //     let col_start = c.identifier.col_start;
+            //     let col_end = c.identifier.col_end;
+            //     let line = c.identifier.line;
+            //     return Err(
+            //         Error { special: None, msg: format!("Attempt to use function calling notation on a Bool."), col_start, col_end, line }
+            //     );
+            // }
+            // Val::Arr(_) => unreachable!(),
+            // Val::BuiltIn(_) => unreachable!(),
+            // Val::Unit => unreachable!(),
+            // Val::Str(_) => unreachable!(),
+            // Val::Char(_) => unreachable!(),
         }
     }
     fn exp(&self, e: Exp) -> Result<Val, Error> {
@@ -600,8 +618,7 @@ impl<'a> Interpreter<'a> {
         }
     }
     fn index(&self, i: Index) -> Result<Val, Error> {
-        // TODO remove cloning
-        self.expr(*(i.expr).clone())?.index(self.get_index(&i)?, &i, None)
+        self.expr(*(i.expr).clone())?.index(self.get_index(&i)?, &i, None, &self.heap)
     }
     fn expr(&self, e: Expr) -> Result<Val, Error> {
         use Expr::*;
@@ -705,7 +722,8 @@ impl<'a> Interpreter<'a> {
     }
     fn set_index(&self, s: SetIndex) -> Result<(), Error> {
         // todo remove clone
-        self.expr((*s.index.expr).clone())?.index(self.get_index(&s.index)?, &s.index.clone(), Some(Val::Unit))?;
+        self.expr((*s.index.expr).clone())?
+            .index(self.get_index(&s.index)?, &s.index.clone(), Some(self.expr(s.value)?), &self.heap)?;
         Ok(())
     }
     pub fn interpret(&'a self, stmt: Statement) -> Result<Option<Val>, Error> {
