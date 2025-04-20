@@ -1,4 +1,5 @@
 use crate::runtime::*;
+use crate::runtime::val::Num;
 
 // TODO inverse trig and other other asortment of other asortments of other assortermentnetms... of functions
 // round floor ceil
@@ -73,12 +74,12 @@ impl BuiltIn {
             let base = i.expr(&c.args[0].clone())?;
             let arg2 = i.expr(&c.args[1].clone())?;
             match (base, arg2) {
-                (Val::Number(base), Val::Number(x)) => {
-                    Ok(Val::Number(x.log(base)))
-                },
+                (Val::Num(base), Val::Num(x)) => {
+                    Ok(Val::Num(Num::Float(x.to_float().log(base.to_float()))))
+                }
                 (a, b) => {
                     let msg = format!(
-                        "Attempt take the log of a {} with the base of a {}. Both should be Numbers.",
+                        "Attempt take the log of a {} with the base of a {}. Both should be numbers.",
                         a.type_as_string(), b.type_as_string(), 
                     );
                     Err(Self::gen_error(msg, c))
@@ -88,7 +89,7 @@ impl BuiltIn {
         else if c.args.len() == 1 {
             let a = i.expr(&c.args[0])?;
             match a {
-                Val::Number(a) => Ok(Val::Number(a.log10())),
+                Val::Num(a) => Ok(Val::Num(Num::Float(a.to_float().log10()))),
                 _ => {
                     Err(Self::gen_error(format!("Can't take the log of a {}.", a.type_as_string()), c))
                 },
@@ -109,16 +110,17 @@ impl BuiltIn {
         if c.args.len() == arg_count {
             let a = i.expr(&c.args[0])?;
             match a {
-                Val::Number(a) => {
+                Val::Num(a) => {
                     use BuiltInT::*;
-                    Ok(Val::Number(match self.t {
+                    let a = a.to_float();
+                    Ok(Val::Num(Num::Float(match self.t {
                         Ln => a.ln(),
                         Sqrt => a.sqrt(),
                         Sin => a.sin(),
                         Cos => a.cos(),
                         Tan => a.tan(),
                         _ => unreachable!(),
-                    }))
+                    })))
                 },
                 _ => {
                     Err(Self::gen_error(
@@ -140,11 +142,11 @@ impl BuiltIn {
         }
         else if c.args.len() == 1 {
             match i.expr(&c.args[0])? {
-                Val::Number(n) => Err(Error {
+                Val::Num(Num::Int(n)) => Err(Error {
                     special: Some(Special::Exit(n as i32)), col_start: 0, col_end: 0, line: 0, msg: "".into()
                 }),
                 other => {
-                    let msg = format!("Attempt to call the exit function with a {}. Expected a Number.", other.type_as_string());
+                    let msg = format!("Attempt to call the exit function with a {}. Expected an Int.", other.type_as_string());
                     Err(Error {
                         special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
                     })

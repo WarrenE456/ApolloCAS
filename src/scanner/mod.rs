@@ -144,8 +144,10 @@ impl<'a> Scanner<'a> {
                         _ = self.advance();
                         len += 1;
                     }
+                    Some(Ok(self.make_tok(Float, len)))
+                } else {
+                    Some(Ok(self.make_tok(Int, len)))
                 }
-                Some(Ok(self.make_tok(Number, len)))
             }
             b'"' => {
                 let _ = self.advance();

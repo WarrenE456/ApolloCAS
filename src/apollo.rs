@@ -82,7 +82,7 @@ impl<'a> Apollo {
                 let interpreter = self.global.read().unwrap();
                 let val = handle_error!(interpreter.interpret(&statement), &lines);
                 if let Some(val) = val {
-                    println!("{}", val.to_string(&self.global.read().unwrap().heap));
+                    println!("{}: {}", val.to_string(&self.global.read().unwrap().heap), val.type_as_string());
                 }
             }
         }

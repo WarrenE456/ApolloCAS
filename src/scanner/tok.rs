@@ -7,7 +7,7 @@ pub enum TokType {
     // Fixed number of characters
     Let, Def, Or, And, If, Else, While, Break, Continue, Set, True, False, Proc, Return, In, For,
     // Variable number of characters
-    Number, Identifier, Str,
+    Float, Int, Identifier, Str,
     // Msc.
     NewLine, EOF
 }

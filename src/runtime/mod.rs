@@ -9,7 +9,7 @@ use crate::mem::heap::{Heap, HeapVal, HeapIter};
 use crate::graph::GraphSignal;
 use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
-use crate::runtime::builtin::BuiltIn;
+use crate::runtime::{builtin::BuiltIn, val::Num};
 
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -30,7 +30,8 @@ impl<'a> Interpreter {
     fn literal(&self, tok: &Tok) -> Result<Val, Error> {
         use TokType::*;
         match tok.t {
-            Number => Ok(Val::Number(tok.lexeme.parse().unwrap())),
+            Float => Ok(Val::Num(Num::Float(tok.lexeme.parse().unwrap()))),
+            Int => Ok(Val::Num(Num::Int(tok.lexeme.parse().unwrap()))),
             True => Ok(Val::Bool(true)),
             False => Ok(Val::Bool(false)),
             Str => {
@@ -41,9 +42,9 @@ impl<'a> Interpreter {
             _ => unreachable!(),
         }
     }
-    fn expect_number(&self, e: &Expr, line: usize, col_start: usize, col_end: usize) -> Result<f64, Error> {
+    fn expect_number(&self, e: &Expr, line: usize, col_start: usize, col_end: usize) -> Result<Num, Error> {
         match self.expr(e)? {
-            Val::Number(n) => Ok(n),
+            Val::Num(n) => Ok(n),
             other => {
                 let msg = format!("Expected Number but found {}.", other.type_as_string());
                 Err(Error { special: None, msg, line, col_start, col_end })
@@ -57,28 +58,23 @@ impl<'a> Interpreter {
         for (next, op) in std::iter::zip(b.operands[1..b.operands.len()].iter(), b.operators.iter()) {
             let next = self.expect_number(next, op.line, op.col_start, op.col_end)?;
             match op.t {
-                Plus => result += next,
-                Minus => result -= next,
-                Star => result *= next,
+                Plus => result = result + next,
+                Minus => result = result - next,
+                Star => result = result * next,
                 Slash => {
-                    if next == 0.0 {
-                        let msg = String::from("Attempt to devide by 0.");
-                        return Err(
-                            Error { special: None, msg, line: op.line, col_end: op.col_end, col_start: op.col_start }
-                        );
-                    } else {
-                        result /= next;
-                    }
+                    result = (result / next).map_err(|msg| Error {
+                        special: None, msg, line: op.line, col_end: op.col_end, col_start: op.col_start
+                    })?;
                 }
                 _ => unreachable!(),
             }
         }
-        Ok(Val::Number(result))
+        Ok(Val::Num(result))
     }
     fn negate(&self, n: &Negate) -> Result<Val, Error> {
         match self.expr(&n.value)? {
-            Val::Number(n) => {
-                Ok(Val::Number(-1.0 * n))
+            Val::Num(n) => {
+                Ok(Val::Num(n * Num::Int(-1)))
             }
             a => Err(Error { special: None,
                 msg: format!("Attempt to negate value of type {}.", a.type_as_string()),
@@ -126,27 +122,22 @@ impl<'a> Interpreter {
                     msg: format!("Attempt to use function calling notation on a {}.", other.type_as_string()), col_start, col_end, line
                 });
             }
-            // Val::Bool(_) => {
-            //     let col_start = c.identifier.col_start;
-            //     let col_end = c.identifier.col_end;
-            //     let line = c.identifier.line;
-            //     return Err(
-            //         Error { special: None, msg: format!("Attempt to use function calling notation on a Bool."), col_start, col_end, line }
-            //     );
-            // }
-            // Val::Arr(_) => unreachable!(),
-            // Val::BuiltIn(_) => unreachable!(),
-            // Val::Unit => unreachable!(),
-            // Val::Str(_) => unreachable!(),
-            // Val::Char(_) => unreachable!(),
         }
     }
     fn exp(&self, e: &Exp) -> Result<Val, Error> {
         let base = self.expr(&e.base)?;
         let power = self.expr(&e.power)?;
-        use Val::*;
         match (&base, &power) {
-            (Number(a), Number(b)) => Ok(Val::Number(a.powf(*b))),
+            (Val::Num(a), Val::Num(b)) => Ok(Val::Num(match (a, b) {
+                (Num::Int(a), Num::Int(b)) => {
+                    if *b >= 0 {
+                        Num::Int(a.pow(*b as u32))
+                    } else {
+                        Num::Float((*a as f64).powf(*b as f64))
+                    }
+                }
+                (a, b) => Num::Float(a.to_float().powf(b.to_float())),
+            })),
             _ => {
                 let msg = format!("Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers.",
                       base.type_as_string(), power.type_as_string()
@@ -161,14 +152,18 @@ impl<'a> Interpreter {
             let val = self.expr(next)?;
             use TokType::*;
             let val = match (vals.last().unwrap(), &val) {
-                (Val::Number(a), Val::Number(b)) => match op.t {
-                    Greater => a > b,
-                    GreaterEqual => a >= b,
-                    Lesser => a < b,
-                    LesserEqual => a <= b,
-                    Equal => a == b,
-                    BangEqual => a != b,
-                    _ => unreachable!(),
+                (Val::Num(a), Val::Num(b)) => {
+                    let a = a.to_float();
+                    let b = b.to_float();
+                    match op.t {
+                        Greater => a > b,
+                        GreaterEqual => a >= b,
+                        Lesser => a < b,
+                        LesserEqual => a <= b,
+                        Equal => a == b,
+                        BangEqual => a != b,
+                        _ => unreachable!(),
+                    }
                 }
                 (Val::Bool(a), Val::Bool(b)) => match op.t {
                     Equal => a == b,
@@ -238,9 +233,9 @@ impl<'a> Interpreter {
     }
     fn get_index(&self, i: &Index) -> Result<usize, Error> {
         match self.expr(&i.index)? {
-            Val::Number(n) => Ok(n as usize),
+            Val::Num(Num::Int(n)) => Ok(n as usize),
             other => {
-                let msg = format!("Attempted to use value of type {} as an index.", other.type_as_string());
+                let msg = format!("Attempted to use value of type {} as an index. Index must be an Int.", other.type_as_string());
                 return Err(Error{ special: None,
                     msg, line: i.rb.line, col_start: i.lb.col_start, col_end: i.rb.col_end
                 })
@@ -267,7 +262,7 @@ impl<'a> Interpreter {
         };
     }
     pub fn eval_expr_at(&self, e: &Expr, var_name: &str, var: f64) -> Result<Val, Error> {
-        let var = Val::Number(var);
+        let var = Val::Num(Num::Float(var));
         self.env.put(var_name.to_string(), var);
         self.expr(e)
     }

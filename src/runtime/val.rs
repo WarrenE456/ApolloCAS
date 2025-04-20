@@ -1,3 +1,5 @@
+use std::ops::{Mul, Div, Add, Sub};
+
 use crate::mem::heap::Heap;
 use crate::runtime::{Interpreter, builtin::BuiltIn};
 use crate::parser::expr::Expr;
@@ -5,9 +7,75 @@ use crate::error::{Error, Special};
 use crate::parser::expr::{Index, Call};
 use crate::parser::statement::{Block, Proc};
 
+#[derive(Clone, Debug, Copy)]
+pub enum Num {
+    Float(f64),
+    Int(i64),
+}
+
+impl Mul for Num {
+    type Output = Self;
+    fn mul(self, other: Self) -> Self {
+        match (self, other) {
+            (Num::Int(a), Num::Int(b)) => Num::Int(a * b),
+            (a, b) => Num::Float(a.to_float() * b.to_float()) 
+        }
+    }
+}
+
+impl Div for Num {
+    type Output = Result<Self, String>;
+    fn div(self, other: Self) -> Result<Self, String> {
+        let (a, b) = (self.to_float(), other.to_float());
+        if b == 0.0 {
+            Err(String::from("Attempt to devide by 0."))
+        } else {
+            Ok(Num::Float(a / b))
+        }
+    }
+}
+
+impl Add for Num {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        match (self, other) {
+            (Num::Int(a), Num::Int(b)) => Num::Int(a + b),
+            (a, b) => Num::Float(a.to_float() + b.to_float()) 
+        }
+    }
+}
+
+impl Sub for Num {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        match (self, other) {
+            (Num::Int(a), Num::Int(b)) => Num::Int(a - b),
+            (a, b) => Num::Float(a.to_float() - b.to_float()) 
+        }
+    }
+}
+
+
+impl Num {
+    pub fn to_string(&self) -> String {
+        use Num::*;
+        match self {
+            Int(n) => n.to_string(),
+            Float(n) => n.to_string(),
+        }
+    }
+    pub fn to_float(self) -> f64 {
+        use Num::*;
+        match self {
+            Int(n) => n as f64,
+            Float(n) => n,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Val {
-    Number(f64),
+    Num(Num),
     Function(Vec<String>, Expr),
     BuiltIn(BuiltIn),
     Bool(bool),
@@ -18,11 +86,14 @@ pub enum Val {
     Char(u8),
 }
 
+pub enum Type {
+}
+
 impl Val {
     pub fn to_string(&self, h: &Heap) -> String {
         use Val::*;
         match self {
-            Number(n) => format!("{}", n),
+            Num(n) => n.to_string(),
             Function(_, e) => e.to_string(),
             BuiltIn(b) => b.to_string(),
             Unit => String::from("()"),
@@ -36,8 +107,12 @@ impl Val {
     }
     pub fn type_as_string(&self) -> String {
         use Val::*;
+        use crate::runtime::val;
         String::from(match self {
-            Number(_) => "Number",
+            Num(n) => match n {
+                val::Num::Float(_) => "Float",
+                val::Num::Int(_) => "Int",
+            },
             Function(..) => "Function",
             BuiltIn(_) => "BuiltIn",
             Unit => "Unit",

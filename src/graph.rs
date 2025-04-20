@@ -154,11 +154,11 @@ impl Graph {
         while x_1 < self.max_x {
             let x_2 = x_1 + dx;
             let y_1 = match scope.eval_expr_at(&e, "x", x_1) {
-                Ok(Val::Number(v)) => v,
+                Ok(Val::Num(v)) => v.to_float(),
                 _ => continue,
             };
             let y_2 = match scope.eval_expr_at(&e, "x", x_2) {
-                Ok(Val::Number(v)) => v,
+                Ok(Val::Num(v)) => v.to_float(),
                 _ => continue,
             };
             let _ = self.draw_line(x_1, y_1, x_2, y_2, Color::RED);

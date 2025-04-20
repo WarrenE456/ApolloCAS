@@ -136,7 +136,7 @@ impl Parser {
             format!("'{}'", next.lexeme)
         };
         match next.t {
-            TokType::Number | TokType::True | TokType::False => {
+            TokType::Float | TokType::Int | TokType::True | TokType::False => {
                 Ok(Expr::Literal(next))
             }
             TokType::Identifier => {
