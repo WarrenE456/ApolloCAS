@@ -27,7 +27,7 @@ impl<'a> Interpreter {
     pub fn from(other: &'a Interpreter) -> Self {
         Self { env: Env::from(Arc::clone(&other.env)), graph_tx: other.graph_tx.clone(), heap: Arc::clone(&other.heap) }
     }
-    fn literal(&self, tok: Tok) -> Result<Val, Error> {
+    fn literal(&self, tok: &Tok) -> Result<Val, Error> {
         use TokType::*;
         match tok.t {
             Number => Ok(Val::Number(tok.lexeme.parse().unwrap())),
@@ -41,7 +41,7 @@ impl<'a> Interpreter {
             _ => unreachable!(),
         }
     }
-    fn expect_number(&self, e: Expr, line: usize, col_start: usize, col_end: usize) -> Result<f64, Error> {
+    fn expect_number(&self, e: &Expr, line: usize, col_start: usize, col_end: usize) -> Result<f64, Error> {
         match self.expr(e)? {
             Val::Number(n) => Ok(n),
             other => {
@@ -50,13 +50,12 @@ impl<'a> Interpreter {
             }
         }
     }
-    fn binary(&self, b: Binary) -> Result<Val, Error> {
-        let mut b = b;
+    fn binary(&self, b: &Binary) -> Result<Val, Error> {
         use TokType::*;
-        let mut op = b.operators.pop().unwrap();
-        let mut result = self.expect_number(b.operands.pop().unwrap(), op.line, op.col_start, op.col_end)?;
-        loop {
-            let next = self.expect_number(b.operands.pop().unwrap(), op.line, op.col_start, op.col_end)?;
+        let op = b.operators.first().unwrap();
+        let mut result = self.expect_number(&b.operands.first().unwrap(), op.line, op.col_start, op.col_end)?;
+        for (next, op) in std::iter::zip(b.operands[1..b.operands.len()].iter(), b.operators.iter()) {
+            let next = self.expect_number(next, op.line, op.col_start, op.col_end)?;
             match op.t {
                 Plus => result += next,
                 Minus => result -= next,
@@ -73,15 +72,11 @@ impl<'a> Interpreter {
                 }
                 _ => unreachable!(),
             }
-            op = match b.operators.pop() {
-                Some(op) => op,
-                None => break,
-            }
         }
         Ok(Val::Number(result))
     }
-    fn negate(&self, n: Negate) -> Result<Val, Error> {
-        match self.expr(*n.value)? {
+    fn negate(&self, n: &Negate) -> Result<Val, Error> {
+        match self.expr(&n.value)? {
             Val::Number(n) => {
                 Ok(Val::Number(-1.0 * n))
             }
@@ -93,7 +88,7 @@ impl<'a> Interpreter {
             }),
         }
     }
-    fn call(&self, c: Call) -> Result<Val, Error> {
+    fn call(&self, c: &Call) -> Result<Val, Error> {
 
         if let Some(built_in) = BuiltIn::is_builtin(&c.identifier.lexeme) {
             return built_in.call(c, self);
@@ -118,10 +113,10 @@ impl<'a> Interpreter {
                     );
                 }
                 let scope = Interpreter::from(self);
-                for (i, arg) in c.args.into_iter().enumerate() {
+                for (i, arg) in c.args.iter().enumerate() {
                     scope.env.put(params[i].clone(), self.expr(arg)?);
                 }
-                scope.expr(body)
+                scope.expr(&body)
             }
             other => {
                 let col_start = c.identifier.col_start;
@@ -146,9 +141,9 @@ impl<'a> Interpreter {
             // Val::Char(_) => unreachable!(),
         }
     }
-    fn exp(&self, e: Exp) -> Result<Val, Error> {
-        let base = self.expr(*e.base)?;
-        let power = self.expr(*e.power)?;
+    fn exp(&self, e: &Exp) -> Result<Val, Error> {
+        let base = self.expr(&e.base)?;
+        let power = self.expr(&e.power)?;
         use Val::*;
         match (&base, &power) {
             (Number(a), Number(b)) => Ok(Val::Number(a.powf(*b))),
@@ -160,15 +155,13 @@ impl<'a> Interpreter {
             }
         }
     }
-    fn comp(&self, c: Comp) -> Result<Val, Error> {
-        let mut c = c;
-        let vals = vec![self.expr(c.operands.pop().unwrap())?];
-        while c.operands.len() > 0 {
-            let val = self.expr(c.operands.pop().unwrap())?;
-            let op = c.operators.pop().unwrap();
+    fn comp(&self, c: &Comp) -> Result<Val, Error> {
+        let vals = vec![self.expr(&c.operands.first().unwrap())?];
+        for (next, op) in std::iter::zip(c.operands[1..c.operands.len()].iter(), c.operators.iter()) {
+            let val = self.expr(next)?;
             use TokType::*;
             let val = match (vals.last().unwrap(), &val) {
-                (Val::Number(b), Val::Number(a)) => match op.t {
+                (Val::Number(a), Val::Number(b)) => match op.t {
                     Greater => a > b,
                     GreaterEqual => a >= b,
                     Lesser => a < b,
@@ -203,8 +196,8 @@ impl<'a> Interpreter {
         }
         Ok(Val::Bool(true))
     }
-    fn or(&self, o: Or) -> Result<Val, Error> {
-        match (self.expr(*o.left)?, self.expr(*o.right)?) {
+    fn or(&self, o: &Or) -> Result<Val, Error> {
+        match (self.expr(&o.left)?, self.expr(&o.right)?) {
             (Val::Bool(a), Val::Bool(b)) => {
                 Ok(Val::Bool(a || b))
             }
@@ -219,8 +212,8 @@ impl<'a> Interpreter {
             }
         }
     }
-    fn and(&self, a: And) -> Result<Val, Error> {
-        match (self.expr(*a.left)?, self.expr(*a.right)?) {
+    fn and(&self, a: &And) -> Result<Val, Error> {
+        match (self.expr(&a.left)?, self.expr(&a.right)?) {
             (Val::Bool(l), Val::Bool(r)) => {
                 Ok(Val::Bool(l && r))
             }
@@ -235,7 +228,7 @@ impl<'a> Interpreter {
             }
         }
     }
-    fn arr(&self, elements: Vec<Expr>) -> Result<Val, Error> {
+    fn arr(&self, elements: &Vec<Expr>) -> Result<Val, Error> {
         let mut vals = Vec::new();
         for element in elements {
             vals.push(self.expr(element)?);
@@ -244,7 +237,7 @@ impl<'a> Interpreter {
         Ok(Val::Arr(addr))
     }
     fn get_index(&self, i: &Index) -> Result<usize, Error> {
-        match self.expr((*i.index).clone())? {
+        match self.expr(&i.index)? {
             Val::Number(n) => Ok(n as usize),
             other => {
                 let msg = format!("Attempted to use value of type {} as an index.", other.type_as_string());
@@ -254,14 +247,14 @@ impl<'a> Interpreter {
             },
         }
     }
-    fn index(&self, i: Index) -> Result<Val, Error> {
-        self.expr(*(i.expr).clone())?.index(self.get_index(&i)?, &i, None, &self.heap)
+    fn index(&self, i: &Index) -> Result<Val, Error> {
+        self.expr(&i.expr)?.index(self.get_index(&i)?, &i, None, &self.heap)
     }
-    fn expr(&self, e: Expr) -> Result<Val, Error> {
+    fn expr(&self, e: &Expr) -> Result<Val, Error> {
         use crate::parser::expr::Expr::*;
         return match e {
             Literal(tok) => self.literal(tok),
-            Group(e) => self.expr(*e),
+            Group(e) => self.expr(e),
             Binary(b) => self.binary(b),
             Negate(n) => self.negate(n),
             Call(c) => self.call(c),
@@ -276,38 +269,37 @@ impl<'a> Interpreter {
     pub fn eval_expr_at(&self, e: &Expr, var_name: &str, var: f64) -> Result<Val, Error> {
         let var = Val::Number(var);
         self.env.put(var_name.to_string(), var);
-        // TODO remove cloneing
-        self.expr(e.clone())
+        self.expr(e)
     }
-    fn var(&self, a: Var) -> Result<(), Error> {
-        let val = self.expr(a.value)?;
-        self.env.def(a.identifier, val.clone())
+    fn var(&self, a: &Var) -> Result<(), Error> {
+        let val = self.expr(&a.value)?;
+        self.env.def(a.identifier.clone(), val.clone())
     }
-    fn set(&self, s: Set) -> Result<(), Error> {
-        let val = self.expr(s.value)?;
-        self.env.set(s.identifier, val.clone())
+    fn set(&self, s: &Set) -> Result<(), Error> {
+        let val = self.expr(&s.value)?;
+        self.env.set(s.identifier.clone(), val.clone())
     }
-    fn def(&self, d: Def) -> Result<(), Error> {
+    fn def(&self, d: &Def) -> Result<(), Error> {
         self.env.def(
-            d.identifier,
-            Val::Function(d.args, d.value),
+            d.identifier.clone(),
+            Val::Function(d.args.clone(), d.value.clone()),
         )?;
         Ok(())
     }
-    fn block(&self, b: Block) -> Result<(), Error> {
-        for statement in b.statements.into_iter() {
+    fn block(&self, b: &Block) -> Result<(), Error> {
+        for statement in b.statements.iter() {
             self.interpret(statement)?;
         }
         Ok(())
     }
-    fn eif(&self, i: If) -> Result<(), Error> {
-        match self.expr(i.cond)? {
+    fn eif(&self, i: &If) -> Result<(), Error> {
+        match self.expr(&i.cond)? {
             Val::Bool(b) => {
                 if b {
-                    self.interpret(*i.if_branch)?;
+                    self.interpret(&i.if_branch)?;
                 } else {
-                    if let Some(else_branch) = i.else_branch {
-                        self.interpret(*else_branch)?;
+                    if let Some(else_branch) = &i.else_branch {
+                        self.interpret(&else_branch)?;
                     }
                 }
             }
@@ -320,14 +312,12 @@ impl<'a> Interpreter {
         }
         Ok(())
     }
-    fn hwile(&self, w: While) -> Result<(), Error> {
+    fn hwile(&self, w: &While) -> Result<(), Error> {
         'a: loop {
-            // TODO remove this cloneing non-sense
-            match self.expr(w.cond.clone())? {
+            match self.expr(&w.cond)? {
                 Val::Bool(b) => {
                     if b {
-                        // TODO remove this cloneing non-sense
-                        match self.interpret((*w.body).clone()) {
+                        match self.interpret(&w.body) {
                             Err(e) => if let Some(s) = e.special.clone() {
                                 use Special::*;
                                 match s {
@@ -357,14 +347,13 @@ impl<'a> Interpreter {
     fn proc(&self, p: Proc) -> Result<(), Error> {
         self.env.def(p.name.clone(), Val::Proc(ProcVal::from(p)))
     }
-    fn set_index(&self, s: SetIndex) -> Result<(), Error> {
-        // todo remove clone
-        self.expr((*s.index.expr).clone())?
-            .index(self.get_index(&s.index)?, &s.index.clone(), Some(self.expr(s.value)?), &self.heap)?;
+    fn set_index(&self, s: &SetIndex) -> Result<(), Error> {
+        self.expr(&s.index.expr)?
+            .index(self.get_index(&s.index)?, &s.index.clone(), Some(self.expr(&s.value)?), &self.heap)?;
         Ok(())
     }
-    fn fro(&self, f: For) -> Result<(), Error> {
-        let addr = match self.expr(f.iter)? {
+    fn fro(&self, f: &For) -> Result<(), Error> {
+        let addr = match self.expr(&f.iter)? {
             Val::Arr(addr) => addr,
             Val::Str(addr) => addr,
             other => {
@@ -378,12 +367,11 @@ impl<'a> Interpreter {
         let inner_scope = Interpreter::from(self);
         while let Some(v) = iter.next(&self.heap) {
             inner_scope.env.put(f.identifier.lexeme.clone(), v);
-            // remove cloning
-            inner_scope.block(f.body.clone())?;
+            inner_scope.block(&f.body)?;
         }
         Ok(())
     }
-    pub fn interpret(&'a self, stmt: Statement) -> Result<Option<Val>, Error> {
+    pub fn interpret(&'a self, stmt: &Statement) -> Result<Option<Val>, Error> {
         use Statement::*;
         return match stmt {
             Expr(e) => self.expr(e).map(|e| Some(e)),
@@ -398,11 +386,11 @@ impl<'a> Interpreter {
                 Ok(None)
             },
             While(w) => {self.hwile(w)?; Ok(None)}
-            Proc(p) => {self.proc(p)?; Ok(None)}
+            Proc(p) => {self.proc(p.clone())?; Ok(None)}
             For(f) => {self.fro(f)?; Ok(None)}
-            Break(e) => Err(e),
-            Continue(e) => Err(e),
-            Return(e) => Err(e),
+            Break(e) => Err(e.clone()),
+            Continue(e) => Err(e.clone()),
+            Return(e) => Err(e.clone()),
             Command(_) => todo!(),
         };
     }

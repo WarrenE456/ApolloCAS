@@ -145,7 +145,7 @@ impl Graph {
         }
         Ok(())
     }
-    fn graph(&self, e: Expr, i: &Arc<RwLock<Interpreter>>) {
+    fn graph(&self, e: &Expr, i: &Arc<RwLock<Interpreter>>) {
         let i = &i.read().unwrap();
         let scope = Interpreter::from(i);
         let dx = (self.max_x - self.min_x) / (self.n as f64);
@@ -174,8 +174,7 @@ impl Graph {
         }
 
         for (_, e) in self.fns.iter() {
-            // TODO remove cloning nonsense
-            self.graph(e.clone(), i);
+            self.graph(e, i);
         }
 
         self.canvas.borrow_mut().present();

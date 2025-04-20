@@ -80,7 +80,7 @@ impl<'a> Apollo {
             
             {
                 let interpreter = self.global.read().unwrap();
-                let val = handle_error!(interpreter.interpret(statement), &lines);
+                let val = handle_error!(interpreter.interpret(&statement), &lines);
                 if let Some(val) = val {
                     println!("{}", val.to_string(&self.global.read().unwrap().heap));
                 }
@@ -124,7 +124,7 @@ impl<'a> Apollo {
         let parser = Parser::new(toks);
         let lines = handle_error!(parser.parse(), &program_lines);
 
-        for line in lines.into_iter() {
+        for line in lines.iter() {
             let interpreter = self.global.read().unwrap();
            handle_error!(interpreter.interpret(line), &program_lines); 
         }

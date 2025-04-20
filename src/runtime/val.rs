@@ -110,7 +110,7 @@ impl ProcVal {
     pub fn from(p: Proc) -> Self {
         Self { params: p.params, body: p.body }
     }
-    pub fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
+    pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() != self.params.len() {
             let msg = format!("Procedure expected {} arguments but received {}.", self.params.len(), c.args.len());
             return Err(Error {
@@ -118,17 +118,16 @@ impl ProcVal {
             });
         }
         let scope = Interpreter::from(&i);
-        for (k, arg) in c.args.into_iter().enumerate() {
-            let val = i.expr(arg)?;
+        for (k, arg) in c.args.iter().enumerate() {
+            let val = i.expr(&arg)?;
             scope.env.put(self.params[k].clone(), val);
         }
 
-        // todo remove cloning non-sense
-        match scope.block(self.body.clone()) {
+        match scope.block(&self.body) {
             Ok(_) => Ok(Val::Unit),
             Err(Error { special: Some(Special::Return(e)), .. }) => {
                 if let Some(e) = e {
-                    Ok(scope.expr(e)?)
+                    Ok(scope.expr(&e)?)
                 } else {
                     Ok(Val::Unit)
                 }

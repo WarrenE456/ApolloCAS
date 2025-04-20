@@ -70,8 +70,6 @@ pub struct Binary {
 
 impl Binary {
     pub fn new(operators: Vec<Tok>, operands: Vec<Expr>) -> Self {
-        let operators = operators.into_iter().rev().collect();
-        let operands = operands.into_iter().rev().collect();
         Self { operators, operands }
     }
 }

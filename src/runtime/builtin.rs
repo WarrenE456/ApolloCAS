@@ -60,7 +60,7 @@ impl BuiltIn {
         };
         Some(BuiltIn { t })
     }
-    fn gen_error(msg: String, c: Call) -> Error {
+    fn gen_error(msg: String, c: &Call) -> Error {
         Error { special: None,
             msg,
             line: c.identifier.line,
@@ -68,10 +68,10 @@ impl BuiltIn {
             col_end: c.rparen.col_end,
         }
     }
-    fn log(c: Call, i: &Interpreter) -> Result<Val, Error> {
+    fn log(c:& Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() == 2 {
-            let base = i.expr(c.args[0].clone())?;
-            let arg2 = i.expr(c.args[1].clone())?;
+            let base = i.expr(&c.args[0].clone())?;
+            let arg2 = i.expr(&c.args[1].clone())?;
             match (base, arg2) {
                 (Val::Number(base), Val::Number(x)) => {
                     Ok(Val::Number(x.log(base)))
@@ -86,7 +86,7 @@ impl BuiltIn {
             }
         }
         else if c.args.len() == 1 {
-            let a = i.expr(c.args[0].clone())?;
+            let a = i.expr(&c.args[0])?;
             match a {
                 Val::Number(a) => Ok(Val::Number(a.log10())),
                 _ => {
@@ -98,16 +98,16 @@ impl BuiltIn {
             Err(Self::gen_error(String::from("Log takes one or two arguments."), c))
         }
     }
-    fn print(c: Call, i: &Interpreter) -> Result<Val, Error> {
+    fn print(c: &Call, i: &Interpreter) -> Result<Val, Error> {
         for arg in c.args.iter() {
-            let v = i.expr(arg.clone())?;
+            let v = i.expr(&arg)?;
             print!("{}", v.to_string(&i.heap));
         }
         Ok(Val::Unit)
     }
-    fn basic(&self, c: Call, arg_count: usize, i: &Interpreter) -> Result<Val, Error> {
+    fn basic(&self, c: &Call, arg_count: usize, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() == arg_count {
-            let a = i.expr(c.args[0].clone())?;
+            let a = i.expr(&c.args[0])?;
             match a {
                 Val::Number(a) => {
                     use BuiltInT::*;
@@ -122,25 +122,24 @@ impl BuiltIn {
                 },
                 _ => {
                     Err(Self::gen_error(
-                        format!("Can't take the {} of a {}.", self.t.to_string(), a.type_as_string()), c
+                        format!("Can't take the {} of a {}.", self.t.to_string(), a.type_as_string()), &c
                     ))
                 },
             }
         }
         else {
-            Err(Self::gen_error(format!("The {} function takes one argument.", self.t.to_string().to_uppercase()), c))
+            Err(Self::gen_error(format!("The {} function takes one argument.", self.t.to_string().to_uppercase()), &c))
         }
 
     }
-    fn exit(c: Call, i: &Interpreter) -> Result<Val, Error> {
+    fn exit(c: &Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() == 0 {
             Err(Error {
                 special: Some(Special::Exit(0)), col_start: 0, col_end: 0, line: 0, msg: "".into()
             })
         }
         else if c.args.len() == 1 {
-            // TODO remove this cloning
-            match i.expr(c.args[0].clone())? {
+            match i.expr(&c.args[0])? {
                 Val::Number(n) => Err(Error {
                     special: Some(Special::Exit(n as i32)), col_start: 0, col_end: 0, line: 0, msg: "".into()
                 }),
@@ -158,10 +157,9 @@ impl BuiltIn {
             })
         }
     }
-    fn create(c: Call, i: &Interpreter) -> Result<Val, Error> {
+    fn create(c: &Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() == 1 {
-            // Remove this cloning
-            match i.expr(c.args[0].clone())? {
+            match i.expr(&c.args[0])? {
                 Val::Str(addr) => {
                     let name = i.heap.to_string(addr);
                     i.graph_tx.send(GraphSignal::Create(name)).unwrap();
@@ -184,10 +182,10 @@ impl BuiltIn {
             })
         }
     }
-    fn graph(c: Call, i: &Interpreter) -> Result<Val, Error> {
+    fn graph(c: &Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() == 3 {
-            let graph_name = i.expr(c.args[0].clone())?;
-            let fn_name = i.expr(c.args[1].clone())?;
+            let graph_name = i.expr(&c.args[0])?;
+            let fn_name = i.expr(&c.args[1])?;
             let e = c.args[2].clone();
             match (graph_name, fn_name) {
                 (Val::Str(graph_addr), Val::Str(fn_addr)) => {
@@ -213,7 +211,7 @@ impl BuiltIn {
             })
         }
     }
-    pub fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
+    pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
             Log => Self::log(c, i),
