@@ -9,7 +9,7 @@ use crate::graph::GraphSignal;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Val {
     Number(f64),
     Function(Vec<String>, Expr),
@@ -141,7 +141,7 @@ impl BuiltInT {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BuiltIn {
     t: BuiltInT
 }
@@ -339,7 +339,7 @@ impl BuiltIn {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProcVal {
     params: Vec<String>,
     body: Block,
@@ -377,18 +377,18 @@ impl ProcVal {
     }
 }
 
-pub struct Interpreter<'a> {
-    env: Env<'a>,
+pub struct Interpreter {
     graph_tx: Sender<GraphSignal>,
+    pub env: Arc<Env>,
     pub heap: Arc<Heap>,
 }
 
-impl<'a> Interpreter<'a> {
+impl<'a> Interpreter {
     pub fn new(graph_tx: Sender<GraphSignal>, heap: Arc<Heap>) -> Self {
-        Self { env: Env::new(), graph_tx, heap }
+        Self { env: Arc::new(Env::new()), graph_tx, heap }
     }
     pub fn from(other: &'a Interpreter) -> Self {
-        Self { env: Env::from(&other.env), graph_tx: other.graph_tx.clone(), heap: Arc::clone(&other.heap) }
+        Self { env: Env::from(Arc::clone(&other.env)), graph_tx: other.graph_tx.clone(), heap: Arc::clone(&other.heap) }
     }
     fn literal(&self, tok: Tok) -> Result<Val, Error> {
         use TokType::*;

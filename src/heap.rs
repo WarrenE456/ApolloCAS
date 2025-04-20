@@ -5,20 +5,53 @@ use std::collections::HashMap;
 
 use crate::interpreter::Val;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum HeapVal {
     Str(Vec<u8>),
     Arr(Vec<Val>),
 }
 
+#[derive(Debug)]
 pub struct Heap {
     counter: AtomicU64,
     mem: RwLock<HashMap<u64, HeapVal>>,
+    marks: RwLock<HashMap<u64, bool>>,
 }
 
 impl Heap {
     pub fn new() -> Self {
-        Self { counter: AtomicU64::new(0), mem: RwLock::new(HashMap::new()) }
+        Self { counter: AtomicU64::new(0), mem: RwLock::new(HashMap::new()), marks: RwLock::new(HashMap::new()) }
+    }
+    pub fn reset_marks(&self) {
+        self.marks.write().unwrap().iter_mut().for_each(|(_, v)| {*v = false});
+    }
+    pub fn mark(&self, addr: u64) {
+        if !self.marks.read().unwrap().get(&addr).unwrap() {
+            self.marks.write().unwrap().get_mut(&addr).map(|v| *v = true);
+            self.mem.read().unwrap().get(&addr).map(|v| match v {
+                HeapVal::Arr(arr) => {
+                    arr.iter().for_each(|v| match v {
+                        Val::Arr(v_addr) => self.mark(*v_addr),
+                        Val::Str(v_addr) => self.mark(*v_addr),
+                        _ => {}
+                    })
+                }
+                _ => {}
+            });
+        }
+    }
+    fn free(&self, addr: u64) {
+        self.mem.write().unwrap().remove(&addr);
+        self.marks.write().unwrap().remove(&addr);
+    }
+    pub fn sweep(&self) {
+        let mut to_free = Vec::new();
+        self.marks.read().unwrap().iter().for_each(|(addr, marked)| {
+            if !marked {
+                to_free.push(*addr) 
+            }
+        });
+        to_free.into_iter().for_each(|addr| self.free(addr));
     }
     pub fn get(&self, id: u64) -> Option<HeapVal> {
         self.mem.read().unwrap().get(&id).map(|v| (*v).clone())
@@ -69,6 +102,7 @@ impl Heap {
         let addr = self.counter.load(SeqCst);
         self.counter.store( addr + 1, SeqCst);
         self.mem.write().unwrap().insert(addr,val);
+        self.marks.write().unwrap().insert(addr, false);
         addr
     }
 }

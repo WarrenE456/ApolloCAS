@@ -27,17 +27,17 @@ pub enum GraphSignal {
     },
 }
 
-pub struct Grapher<'a> {
+pub struct Grapher {
     v_sub: VideoSubsystem,
     event_pump: EventPump,
-    global: Arc<RwLock<Interpreter<'a>>>,
+    global: Arc<RwLock<Interpreter>>,
     name_to_id: HashMap<String, u32>,
     graphs: HashMap<u32, Graph>,
     graph_rx: Receiver<GraphSignal>
 }
 
-impl<'a> Grapher<'a> {
-    pub fn new(global: Arc<RwLock<Interpreter<'a>>>, graph_rx: Receiver<GraphSignal>) -> Self {
+impl Grapher {
+    pub fn new(global: Arc<RwLock<Interpreter>>, graph_rx: Receiver<GraphSignal>) -> Self {
         let sdl2 = sdl2::init().unwrap();
         let v_sub = sdl2.video().unwrap();
         let event_pump = sdl2.event_pump().unwrap();

@@ -7,6 +7,7 @@ pub mod interpreter;
 pub mod environment;
 pub mod graph;
 pub mod heap;
+pub mod gc;
 
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
@@ -18,6 +19,7 @@ use apollo::Apollo;
 use interpreter::Interpreter;
 use heap::Heap;
 use graph::{Grapher, GraphSignal};
+use gc::GC;
 
 /* TODO
 *
@@ -47,12 +49,24 @@ fn main() {
     let heap = Arc::new(Heap::new());
     let global = Arc::new(RwLock::new(Interpreter::new(graph_tx.clone(), heap)));
     let running = Arc::new(AtomicBool::new(true));
-
     
     let apollo_global = Arc::clone(&global);
     let apollo_handle = thread::spawn(move || {
         let apollo = Apollo::new(apollo_global, graph_tx);
         apollo.run();
+    });
+
+    // TODO dynamic gc's per second depending on mem usage
+    let gc_global = Arc::clone(&global);
+    let gc_running = Arc::clone(&running);
+    let gc_handle = thread::spawn(move || {
+        let gc = GC::new(Arc::clone(&gc_global.read().unwrap().heap));
+        while gc_running.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(512));
+            gc.prime();
+            gc.mark(&gc_global.read().unwrap().env);
+            gc.sweep();
+        }
     });
 
     let grapher_running = Arc::clone(&running);
@@ -68,5 +82,6 @@ fn main() {
 
     apollo_handle.join().unwrap();
     running.store(false, Ordering::SeqCst);
+    gc_handle.join().unwrap();
     grapher_handle.join().unwrap();
 }

@@ -1,21 +1,32 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, Weak, Arc};
 
 use crate::interpreter::Val;
 use crate::error::Error;
 use crate::scanner::Tok;
 
-pub struct Env<'a> {
-    parent: Option<&'a Env<'a>>,
-    mp: Mutex<HashMap<String, Val>>,
+pub struct Env {
+    parent: Option<Arc<Env>>,
+    pub children: Mutex<Vec<Weak<Env>>>,
+    pub mp: Mutex<HashMap<String, Val>>,
 }
 
-impl<'a> Env<'a> {
+impl<'a> Env {
     pub fn new() -> Self {
-        Self {parent: None, mp: HashMap::new().into() }
+        Self {parent: None, mp: HashMap::new().into(), children: Mutex::new(Vec::new()) }
     }
-    pub fn from(other: &'a Env<'a>) -> Self {
-        Self {parent: Some(other), mp: HashMap::new().into() }
+    pub fn clear_moved_children(&self) {
+        let mut children = self.children.lock().unwrap();
+        children.retain(|child| child.upgrade().is_some())
+    }
+    pub fn from(parent: Arc<Env>) -> Arc<Self> {
+        let mut parent_children = parent.children.lock().unwrap();
+        let _self = Arc::new(Self {
+            parent: Some(Arc::clone(&parent)), mp: HashMap::new().into(),
+            children: Mutex::new(Vec::new())
+        });
+        parent_children.push(Arc::downgrade(&_self));
+        _self
     }
     pub fn def(&self, i: Tok, val: Val) -> Result<(), Error> {
         if self.mp.lock().unwrap().contains_key(&i.lexeme) {
@@ -33,7 +44,7 @@ impl<'a> Env<'a> {
     }
     pub fn set(&self, i: Tok, val: Val) -> Result<(), Error> {
         if !self.mp.lock().unwrap().contains_key(&i.lexeme) {
-            if let Some(p) = self.parent {
+            if let Some(p) = &self.parent {
                 p.set(i, val)
             } else {
                 let msg = format!("Attempt to set undefined variable '{}'.", i.lexeme);
@@ -49,7 +60,7 @@ impl<'a> Env<'a> {
     pub fn get(&self, tok: &Tok) -> Result<Val, Error> {
         match self.mp.lock().unwrap().get(&tok.lexeme) {
             None => {
-                if let Some(env) = self.parent {
+                if let Some(env) = &self.parent {
                     env.get(tok)
                 } else {
                     Err(Error{

@@ -19,13 +19,13 @@ fn curly_braces_closed(s: &String) -> bool {
     num_lparen == num_rparen
 }
 
-pub struct Apollo<'a> {
-    global: Arc<RwLock<Interpreter<'a>>>,
+pub struct Apollo {
+    global: Arc<RwLock<Interpreter>>,
     pub graph_tx: Sender<GraphSignal>,
 }
 
-impl<'a> Apollo<'a> {
-    pub fn new(global: Arc<RwLock<Interpreter<'a>>>, graph_tx: Sender<GraphSignal>) -> Self {
+impl<'a> Apollo {
+    pub fn new(global: Arc<RwLock<Interpreter>>, graph_tx: Sender<GraphSignal>) -> Self {
         Self { global, graph_tx }
     }
     fn repl(&self) {
