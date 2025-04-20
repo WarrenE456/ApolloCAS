@@ -11,6 +11,25 @@ pub enum HeapVal {
     Arr(Vec<Val>),
 }
 
+pub struct HeapIter {
+    addr: u64,
+    idx: usize
+}
+
+impl HeapIter {
+    pub fn new(addr: u64) -> Self{
+        Self { addr, idx: 0 }
+    }
+    pub fn next(&mut self, h: &Heap) -> Option<Val> {
+        if self.idx < h.len(self.addr) {
+            self.idx += 1;
+            Some(h.get_at(self.addr, self.idx - 1)?)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Heap {
     counter: AtomicU64,

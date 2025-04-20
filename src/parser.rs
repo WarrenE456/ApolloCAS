@@ -3,13 +3,14 @@
 * program -> '\n'* ((statement | $) '\n'+)+
 *
 * statement -> ( expr | command | var | def | block | if | while | break | cont | set | proc |
-                 return )
+                 return | for )
 * var -> 'let' IDENTIFIER '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * set -> 'set' IDENTIFIER (('[' expr ']')* '[' expr ']')? '=' expr
 * if -> 'if' expr block ('else' (block | if))?
 * while -> 'while' expr block
 * proc -> 'proc' IDENTIFIER '(' (IDENTIFIER ( ',' IDENTIFIER )*)? ')' block
+* for -> 'for' IDENTIFIER 'in' expr block
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
 *
@@ -443,9 +444,20 @@ impl Parser {
             msg, special: Some(Special::Return(value)), col_start: r.col_start, col_end: r.col_end, line: r.line
         }
     }
+    // for -> 'for' IDENTIFIER 'in' expr block
+    fn fro(&self) -> Result<Statement, Error> {
+        let fro = self.advance().clone();
+        self.expect(TokType::Identifier, String::from("Expected a variable name after 'for'."))?;
+        let identifier = self.advance().clone();
+        self.expect(TokType::In, String::from("Expected 'in' after variable name."))?;
+        let _ = self.advance();
+        let iter = self.expr()?;
+        let body = self.block()?;
+        Ok(Statement::For(For { fro, identifier, iter, body }))
+    }
     // TODO: command
-    // statement -> (expr | command | var | def | block | if | while | break | cont)
     fn statement(&self) -> Result<Statement, Error> {
+        // TODO clean up
         match self.peek().t {
             TokType::Let => self.var().map(|a| Statement::Var(a)),
             TokType::Set => self.set(),
@@ -457,6 +469,7 @@ impl Parser {
             TokType::Continue => Ok(Statement::Continue(self._continue())),
             TokType::Return => Ok(Statement::Return(self._return())),
             TokType::Proc => self.proc().map(|p| Statement::Proc(p)),
+            TokType::For => self.fro(),
             _ => self.expr().map(|e| Statement::Expr(e)),
         }
     }

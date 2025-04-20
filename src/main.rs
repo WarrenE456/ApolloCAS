@@ -40,6 +40,7 @@ use gc::GC;
 * let lists
 * implement Error::from(msg, tok)
 * <c-d> to interupt
+* add comma statement
 *
 */
 

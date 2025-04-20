@@ -16,6 +16,7 @@ pub enum Statement {
     Break(Error),
     Continue(Error),
     Return(Error),
+    For(For),
 }
 
 #[derive(Debug, Clone)]
@@ -179,6 +180,14 @@ pub struct If {
     pub cond: Expr,
     pub if_branch: Box<Statement>,
     pub else_branch: Option<Box<Statement>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct For {
+    pub fro: Tok,
+    pub identifier: Tok,
+    pub iter: Expr,
+    pub body: Block,
 }
 
 #[derive(Debug, Clone)]

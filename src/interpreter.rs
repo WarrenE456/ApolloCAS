@@ -2,7 +2,7 @@ use crate::error::{Error, Special};
 use crate::statement::*;
 use crate::scanner::{Tok, TokType};
 use crate::environment::Env;
-use crate::heap::{Heap, HeapVal};
+use crate::heap::{Heap, HeapVal, HeapIter};
 
 use crate::graph::GraphSignal;
 
@@ -726,6 +726,26 @@ impl<'a> Interpreter {
             .index(self.get_index(&s.index)?, &s.index.clone(), Some(self.expr(s.value)?), &self.heap)?;
         Ok(())
     }
+    fn fro(&self, f: For) -> Result<(), Error> {
+        let addr = match self.expr(f.iter)? {
+            Val::Arr(addr) => addr,
+            Val::Str(addr) => addr,
+            other => {
+                let msg = format!("Attempt to iterate over a {}.", other.type_as_string());
+                return Err(Error { special: None, msg,
+                    col_start: f.fro.col_start, col_end: f.fro.col_end, line: f.fro.line
+                });
+            }
+        };
+        let mut iter = HeapIter::new(addr);
+        let inner_scope = Interpreter::from(self);
+        while let Some(v) = iter.next(&self.heap) {
+            inner_scope.env.put(f.identifier.lexeme.clone(), v);
+            // remove cloning
+            inner_scope.block(f.body.clone())?;
+        }
+        Ok(())
+    }
     pub fn interpret(&'a self, stmt: Statement) -> Result<Option<Val>, Error> {
         use Statement::*;
         return match stmt {
@@ -742,6 +762,7 @@ impl<'a> Interpreter {
             },
             While(w) => {self.hwile(w)?; Ok(None)}
             Proc(p) => {self.proc(p)?; Ok(None)}
+            For(f) => {self.fro(f)?; Ok(None)}
             Break(e) => Err(e),
             Continue(e) => Err(e),
             Return(e) => Err(e),
