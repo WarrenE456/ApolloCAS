@@ -68,22 +68,29 @@ impl Heap {
             _ => unreachable!(),
         });
     }
-    pub fn set_str(&self, id: u64, idx: usize, c: u8) {
-        self.mem.write().unwrap().get_mut(&id).map(|str| match str {
+    pub fn set_str(&self, addr: u64, idx: usize, c: u8) {
+        self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str[idx] = c,
             _ => unreachable!(),
         });
     }
-    pub fn to_string(&self, id: u64) -> String {
+    pub fn to_string(&self, addr: u64) -> String {
         let reader = self.mem.read().unwrap();
-        let v = reader.get(&id).unwrap();
+        let v = reader.get(&addr).unwrap();
         match v {
             HeapVal::Str(s) => {
                 String::from_utf8(s.clone()).unwrap()
             }
             HeapVal::Arr(a) => {
                 let s = a.iter()
-                    .map(|a| a.to_string(self))
+                    .map(|a| match a {
+                        Val::Arr(a_addr) => if addr == *a_addr {
+                            String::from("<recursive>")
+                        } else {
+                            a.to_string(self)
+                        }
+                        a => a.to_string(self)
+                    })
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("[{}]", s)
