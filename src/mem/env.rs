@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, Weak, Arc};
 
-use crate::interpreter::Val;
+use crate::runtime::val::Val;
 use crate::error::Error;
-use crate::scanner::Tok;
+use crate::scanner::tok::Tok;
 
 pub struct Env {
     parent: Option<Arc<Env>>,

@@ -1,13 +1,10 @@
-pub mod scanner;
-pub mod parser;
-pub mod error;
-pub mod statement;
 pub mod apollo;
-pub mod interpreter;
-pub mod environment;
 pub mod graph;
-pub mod heap;
-pub mod gc;
+pub mod error;
+pub mod scanner;
+pub mod runtime;
+pub mod parser;
+pub mod mem;
 
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
@@ -16,10 +13,10 @@ use std::thread;
 use std::time::Duration;
 
 use apollo::Apollo;
-use interpreter::Interpreter;
-use heap::Heap;
+use runtime::Interpreter;
+use mem::heap::Heap;
 use graph::{Grapher, GraphSignal};
-use gc::GC;
+use mem::gc::GC;
 
 /* TODO
 *

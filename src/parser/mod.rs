@@ -34,12 +34,17 @@
 * args_list -> '(' (expr (',' expr )*)? ')'
 */
 
+pub mod statement;
+pub mod expr;
+
 use std::cell::Cell;
 use std::collections::HashSet;
 
-use crate::scanner::{Tok, TokType};
-use crate::statement::*;
+use crate::scanner::tok::{Tok, TokType};
+use crate::parser::statement::*;
+use crate::parser::expr::*;
 use crate::error::{Error, Special};
+use crate::parser::expr::Expr;
 
 pub struct Parser {
     toks: Vec<Tok>,

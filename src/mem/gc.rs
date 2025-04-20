@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use crate::interpreter::Val;
-use crate::heap::Heap;
-use crate::environment::Env;
+use crate::runtime::val::Val;
+use crate::mem::heap::Heap;
+use crate::mem::env::Env;
 
 #[derive(Debug)]
 pub struct GC {

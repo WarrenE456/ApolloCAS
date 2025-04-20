@@ -9,8 +9,8 @@ use sdl2::{
     VideoSubsystem,
 };
 
-use crate::statement::Expr;
-use crate::interpreter::{Val, Interpreter};
+use crate::parser::expr::Expr;
+use crate::runtime::{val::Val, Interpreter};
 
 use std::cell::RefCell;
 use std::collections::HashMap;

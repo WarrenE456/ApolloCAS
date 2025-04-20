@@ -1,4 +1,4 @@
-use crate::statement::Expr;
+use crate::parser::expr::Expr;
 
 #[derive(Debug, Clone)]
 pub enum Special {

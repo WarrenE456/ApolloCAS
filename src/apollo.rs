@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 
 use crate::scanner::Scanner;
 use crate::parser::Parser;
-use crate::interpreter::Interpreter;
+use crate::runtime::Interpreter;
 use crate::error::Special::Exit;
 use crate::graph::GraphSignal;
 

@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
 use std::collections::HashMap;
 
-use crate::interpreter::Val;
+use crate::runtime::val::Val;
 
 #[derive(Clone, Debug)]
 pub enum HeapVal {
