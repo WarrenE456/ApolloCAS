@@ -71,6 +71,13 @@ impl Num {
             Float(n) => n,
         }
     }
+    pub fn to_int(self) -> i64 {
+        use Num::*;
+        match self {
+            Int(n) => n,
+            Float(n) => n as i64,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -86,9 +93,6 @@ pub enum Val {
     Char(u8),
 }
 
-pub enum Type {
-}
-
 impl Val {
     pub fn to_string(&self, h: &Heap) -> String {
         use Val::*;
@@ -102,9 +106,25 @@ impl Val {
             Proc(_) => String::from("<procedure>"),
             Str(addr) => h.to_string(*addr),
             Arr(addr) => h.to_string(*addr),
-            Char(c) => c.to_string(),
+            Char(c) => (*c as char).to_string(),
         }
     }
+    pub fn get_type(&self) -> Type {
+        match self {
+            Val::Num(Num::Int(_)) => Type::Int,
+            Val::Num(Num::Float(_)) => Type::Float,
+            Val::Function(..) => Type::Fn,
+            Val::BuiltIn(_) => Type::BuiltIn,
+            Val::Unit => Type::Unit,
+            Val::Bool(_) => Type::Bool,
+            // TODO
+            Val::Proc(_) => Type::Unit,
+            Val::Str(_) => Type::Str,
+            Val::Arr(_) => Type::Arr,
+            Val::Char(_) => Type::Char,
+        }
+    }
+    // TODO remove
     pub fn type_as_string(&self) -> String {
         use Val::*;
         use crate::runtime::val;
@@ -170,6 +190,62 @@ impl Val {
                 Err(Error { special: None,
                     msg, line: index.lb.line, col_end: index.rb.col_end, col_start: index.lb.col_start
                 })
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    Any,
+    Int,
+    Float,
+    Fn,
+    BuiltIn,
+    Bool,
+    Unit,
+    Str,
+    Arr,
+    Char,
+    Auto,
+}
+
+impl Type {
+    fn to_string(&self) -> String {
+        use Type::*;
+        match self {
+            Any => String::from("Any"),
+            Int => String::from("Int"),
+            Float => String::from("Float"),
+            Fn => String::from("Fn"),
+            BuiltIn => String::from("BuiltIn"),
+            Bool => String::from("Bool"),
+            Unit => String::from("Unit"),
+            Str => String::from("Str"),
+            Arr => String::from("Arr"),
+            Char => String::from("Char"),
+            Auto => String::from("Auto"),
+        }
+    }
+    fn gen_type_error(expected: &Type, found: &Type) -> String {
+        format!("Expected type {} but found {}.", expected.to_string(), found.to_string())
+    }
+    pub fn coerce(&self, v: Val) -> Result<Val, String> {
+        match self {
+            Self::Any => Ok(v),
+            Self::Float => match v {
+                Val::Num(Num::Float(_)) => Ok(v),
+                Val::Num(Num::Int(n)) => Ok(Val::Num(Num::Float(n as f64))),
+                other => Err(Self::gen_type_error(&Type::Float, &other.get_type()))
+            }
+            _ => {
+                let other = v.get_type();
+                if other == *self {
+                    Ok(v)
+                } else {
+                    Err(Self::gen_type_error(self, &other))
+                }
             }
         }
     }

@@ -267,7 +267,11 @@ impl<'a> Interpreter {
         self.expr(e)
     }
     fn var(&self, a: &Var) -> Result<(), Error> {
-        let val = self.expr(&a.value)?;
+        let val = a.t.coerce(self.expr(&a.value)?).map_err(|msg| {
+            Error { special: None, msg,
+                col_start: a.op.col_start, col_end: a.op.col_end, line: a.op.line
+            }
+        })?;
         self.env.def(a.identifier.clone(), val.clone())
     }
     fn set(&self, s: &Set) -> Result<(), Error> {

@@ -4,7 +4,7 @@
 *
 * statement -> ( expr | command | var | def | block | if | while | break | cont | set | proc |
                  return | for )
-* var -> 'let' IDENTIFIER '=' expr
+* var -> 'let' IDENTIFIER (':' type)? '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * set -> 'set' IDENTIFIER (('[' expr ']')* '[' expr ']')? '=' expr
 * if -> 'if' expr block ('else' (block | if))?
@@ -13,6 +13,7 @@
 * for -> 'for' IDENTIFIER 'in' expr block
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
+* type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char
 *
 * expr -> term
 * and -> or ("and" or)*
@@ -45,6 +46,7 @@ use crate::parser::statement::*;
 use crate::parser::expr::*;
 use crate::error::{Error, Special};
 use crate::parser::expr::Expr;
+use crate::runtime::val::Type;
 
 pub struct Parser {
     toks: Vec<Tok>,
@@ -267,15 +269,46 @@ impl Parser {
     fn expr(&self) -> Result<Expr, Error> {
         self.or()
     }
-    // var -> "let" IDENTIFIER '=' expr
+    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char
+    fn t(&self) -> Result<Type, Error> {
+        let next = self.advance();
+        use TokType::*;
+        match next.t {
+            AnyT => Ok(Type::Any),
+            IntT => Ok(Type::Int),
+            FloatT => Ok(Type::Float),
+            FnT => Ok(Type::Fn),
+            BuiltInT => Ok(Type::BuiltIn),
+            BoolT => Ok(Type::Bool),
+            UnitT => Ok(Type::Unit),
+            StrT => Ok(Type::Str),
+            ArrT => Ok(Type::Arr),
+            CharT => Ok(Type::Char),
+            _ => {
+                let msg = String::from("Expected type here.");
+                Err(Error { special: None,
+                    msg, line: next.line, col_start: next.col_start, col_end: next.col_end
+                })
+            }
+        }
+    }
+    // var -> 'let' IDENTIFIER (':' type)? '=' expr
     fn var(&self) -> Result<Var, Error> {
         assert_eq!(self.advance().t, TokType::Let);
         self.expect(TokType::Identifier, String::from("Expected a variable name here."))?;
         let identifier = self.advance().clone();
+
+        let t = if self.is_match(TokType::Colon) {
+            let _ = self.advance();
+            self.t()?
+        } else {
+            Type::Auto
+        };
+
         self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
         let op = self.advance().clone();
         let value = self.expr()?;
-        Ok(Var { identifier, op, value })
+        Ok(Var { identifier, op, value, t })
     }
     fn set_helper(&self) -> Result<(Tok, Expr), Error> {
         self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;

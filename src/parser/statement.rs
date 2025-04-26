@@ -2,6 +2,7 @@ use crate::parser::*;
 use crate::parser::expr::Index;
 use crate::error::Error;
 use crate::scanner::tok::Tok;
+use crate::runtime::val::Type;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -27,6 +28,7 @@ pub struct Command {
 #[derive(Debug, Clone)]
 pub struct Var {
     pub identifier: Tok,
+    pub t: Type,
     pub op: Tok,
     pub value: Expr,
 }

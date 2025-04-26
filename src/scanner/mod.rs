@@ -41,6 +41,16 @@ impl<'a> Scanner<'a> {
             (String::from("return"), TokType::Return),
             (String::from("in"), TokType::In),
             (String::from("for"), TokType::For),
+            (String::from("Any"), TokType::AnyT),
+            (String::from("Int"), TokType::IntT),
+            (String::from("Float"), TokType::FloatT),
+            (String::from("Fn"), TokType::FnT),
+            (String::from("BuiltIn"), TokType::BuiltInT),
+            (String::from("Bool"), TokType::BoolT),
+            (String::from("Unit"), TokType::UnitT),
+            (String::from("Str"), TokType::StrT),
+            (String::from("Arr"), TokType::ArrT),
+            (String::from("Char"), TokType::CharT),
         ]);
         Scanner {
             program,
@@ -111,6 +121,7 @@ impl<'a> Scanner<'a> {
             b'}' => Some(Ok(self.make_tok(RCurly, 0))),
             b'[' => Some(Ok(self.make_tok(LBrac, 0))),
             b']' => Some(Ok(self.make_tok(RBrac, 0))),
+            b':' => Some(Ok(self.make_tok(Colon, 0))),
             b'<' => {
                 if self.is_match(b'=') {
                     Some(Ok(self.make_tok(LesserEqual, 1)))

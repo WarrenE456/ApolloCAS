@@ -95,7 +95,10 @@ impl Heap {
     }
     pub fn to_string(&self, addr: u64) -> String {
         let reader = self.mem.read().unwrap();
-        let v = reader.get(&addr).unwrap();
+        let v = match reader.get(&addr) {
+            Some(v) => v,
+            None => return String::from("<null>"),
+        };
         match v {
             HeapVal::Str(s) => {
                 String::from_utf8(s.clone()).unwrap()
