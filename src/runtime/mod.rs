@@ -351,7 +351,6 @@ impl<'a> Interpreter {
             Ok(())
     }
     fn proc(&self, p: Proc) -> Result<(), Error> {
-        // TODO types
         self.env.def(p.name.clone(), Val::Proc(ProcVal::from(p)), Type::Any)
     }
     fn set_index(&self, s: &SetIndex) -> Result<(), Error> {

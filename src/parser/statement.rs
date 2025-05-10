@@ -86,6 +86,7 @@ pub struct While {
 #[derive(Debug, Clone)]
 pub struct Proc {
     pub name: Tok,
-    pub params: Vec<String>,
+    pub params: Vec<(Tok, Type)>,
+    pub return_t: Type,
     pub body: Block,
 }

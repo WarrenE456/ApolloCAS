@@ -109,7 +109,6 @@ impl<'a> Scanner<'a> {
         let c = self.advance();
         match c {
             b'+' => Some(Ok(self.make_tok(Plus, 0))),
-            b'-' => Some(Ok(self.make_tok(Minus, 0))),
             b'*' => Some(Ok(self.make_tok(Star, 0))),
             b'/' => Some(Ok(self.make_tok(Slash, 0))),
             b'=' => Some(Ok(self.make_tok(Equal, 0))),
@@ -122,6 +121,13 @@ impl<'a> Scanner<'a> {
             b'[' => Some(Ok(self.make_tok(LBrac, 0))),
             b']' => Some(Ok(self.make_tok(RBrac, 0))),
             b':' => Some(Ok(self.make_tok(Colon, 0))),
+            b'-' => {
+                if self.is_match(b'>') {
+                    Some(Ok(self.make_tok(Arrow, 0)))
+                } else {
+                    Some(Ok(self.make_tok(Minus, 0)))
+                }
+            }
             b'<' => {
                 if self.is_match(b'=') {
                     Some(Ok(self.make_tok(LesserEqual, 1)))

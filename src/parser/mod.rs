@@ -4,16 +4,18 @@
 *
 * statement -> ( expr | command | var | def | block | if | while | break | cont | set | proc |
                  return | for )
-* var -> 'let' IDENTIFIER (':' type)? '=' expr
+* var -> 'let' typed '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * set -> 'set' IDENTIFIER (('[' expr ']')* '[' expr ']')? '=' expr
 * if -> 'if' expr block ('else' (block | if))?
 * while -> 'while' expr block
-* proc -> 'proc' IDENTIFIER '(' (IDENTIFIER ( ',' IDENTIFIER )*)? ')' block
+* proc -> 'proc' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
 * for -> 'for' IDENTIFIER 'in' expr block
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
-* type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char
+* type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t
+* typed -> IDENTIFIER (':' type)?
+* proc_t -> '(' type ( ',' type )* '->' type ')'
 *
 * expr -> term
 * and -> or ("and" or)*
@@ -269,7 +271,21 @@ impl Parser {
     fn expr(&self) -> Result<Expr, Error> {
         self.or()
     }
-    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char
+    // proc_t -> '(' type ( ',' type )* '->' type ')'
+    fn proc_t(&self) -> Result<Type, Error> {
+        let mut param_t = vec![self.t()?];
+        while self.is_match(TokType::Comma) {
+            let _ = self.advance();
+            param_t.push(self.t()?);
+        }
+        self.expect(TokType::Arrow, String::from("Expected an arrow after the parameter types and before the return type."))?;
+        let _ = self.advance();
+        let return_t = self.t()?;
+        self.expect(TokType::RParen, String::from("Expected a closing parenthesis."))?;
+        let _ = self.advance();
+        Ok(Type::Proc(param_t, Box::new(return_t)))
+    }
+    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t
     fn t(&self) -> Result<Type, Error> {
         let next = self.advance();
         use TokType::*;
@@ -284,6 +300,7 @@ impl Parser {
             StrT => Ok(Type::Str),
             ArrT => Ok(Type::Arr),
             CharT => Ok(Type::Char),
+            LParen => self.proc_t(),
             _ => {
                 let msg = String::from("Expected type here.");
                 Err(Error { special: None,
@@ -292,18 +309,25 @@ impl Parser {
             }
         }
     }
-    // var -> 'let' IDENTIFIER (':' type)? '=' expr
-    fn var(&self) -> Result<Var, Error> {
-        assert_eq!(self.advance().t, TokType::Let);
-        self.expect(TokType::Identifier, String::from("Expected a variable name here."))?;
+    fn typed(&self) -> Result<(Tok, Option<Type>), Error> {
         let identifier = self.advance().clone();
 
         let t = if self.is_match(TokType::Colon) {
             let _ = self.advance();
-            self.t()?
+            Some(self.t()?)
         } else {
-            Type::Auto
+            None
         };
+
+        Ok((identifier, t))
+    }
+    // var -> 'let' IDENTIFIER (':' type)? '=' expr
+    fn var(&self) -> Result<Var, Error> {
+        assert_eq!(self.advance().t, TokType::Let);
+        self.expect(TokType::Identifier, String::from("Expected a variable name here."))?;
+
+        let (identifier, t) = self.typed()?;
+        let t = t.unwrap_or(Type::Auto);
 
         self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
         let op = self.advance().clone();
@@ -415,7 +439,7 @@ impl Parser {
         let body = Box::new(Statement::Block(self.block()?));
         Ok(While { hwile, cond, body })
     }
-    // proc -> 'proc' IDENTIFIER '(' (IDENTIFIER ( ',' IDENTIFIER )*)? ')' block
+    // proc -> 'proc' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
     fn proc(&self) -> Result<Proc, Error> {
         let _ = self.advance();
         self.expect(TokType::Identifier, String::from("Expected procedure name."))?;
@@ -423,24 +447,30 @@ impl Parser {
         self.expect(TokType::LParen, String::from("Expected opening parenthesis"))?;
         let _ = self.advance();
 
-        let mut params = HashSet::new();
+        let mut param_names = HashSet::new();
+        let mut params = Vec::new();
 
         if self.is_match(TokType::Identifier) {
-            params.insert(self.advance().lexeme.clone());
+            let (identifier, t) = self.typed()?;
+            let t = t.unwrap_or(Type::Any);
+            param_names.insert(identifier.lexeme.clone());
+            params.push((identifier, t));
 
             while self.is_match(TokType::Comma) {
                 let _ = self.advance();
                 self.expect(TokType::Identifier, String::from("Expected parameter name here."))?;
 
-                let cur = self.advance();
+                let (identifier, t) = self.typed()?;
+                let t = t.unwrap_or(Type::Any);
 
-                if params.contains(&cur.lexeme) {
+                if param_names.contains(&identifier.lexeme) {
                     let msg = String::from("Attempt to create duplicate parameter.");
                     return Err(Error {
-                        msg, special: None, col_start: cur.col_start, col_end: cur.col_end, line: cur.line
+                        msg, special: None, col_start: identifier.col_start, col_end: identifier.col_end, line: identifier.line
                     })
                 } else {
-                    params.insert(cur.lexeme.clone());
+                    param_names.insert(identifier.lexeme.clone());
+                    params.push((identifier, t));
                 }
             }
         }
@@ -448,10 +478,16 @@ impl Parser {
         self.expect(TokType::RParen, String::from("Expected closing parenthesis."))?;
         let _ = self.advance();
 
+        let return_t = if self.is_match(TokType::Arrow) {
+            let _ = self.advance();
+            self.t()?
+        } else {
+            Type::Any
+        };
+
         let body = self.block()?;
 
-        let params = params.into_iter().collect();
-        Ok(Proc { name, params, body })
+        Ok(Proc { name, params, return_t, body })
     }
     fn _break(&self) -> Error {
         let b = self.advance();
@@ -479,7 +515,7 @@ impl Parser {
         };
         let msg = String::from("Attempt to use return statement outside of procedure.");
         Error {
-            msg, special: Some(Special::Return(value)), col_start: r.col_start, col_end: r.col_end, line: r.line
+            msg, special: Some(Special::Return(value, r.clone())), col_start: r.col_start, col_end: r.col_end, line: r.line
         }
     }
     // for -> 'for' IDENTIFIER 'in' expr block

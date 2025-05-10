@@ -1,10 +1,11 @@
 use crate::parser::expr::Expr;
+use crate::scanner::tok::Tok;
 
 #[derive(Debug, Clone)]
 pub enum Special {
     Break,
     Continue,
-    Return(Option<Expr>),
+    Return(Option<Expr>, Tok),
     Exit(i32),
 }
 

@@ -6,6 +6,7 @@ use crate::parser::expr::Expr;
 use crate::error::{Error, Special};
 use crate::parser::expr::{Index, Call};
 use crate::parser::statement::{Block, Proc};
+use crate::scanner::tok::Tok;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Num {
@@ -117,8 +118,10 @@ impl Val {
             Val::BuiltIn(_) => Type::BuiltIn,
             Val::Unit => Type::Unit,
             Val::Bool(_) => Type::Bool,
-            // TODO
-            Val::Proc(_) => Type::Unit,
+            Val::Proc(ProcVal { params, return_t, ..}) => {
+                let param_t: Vec<Type> = params.iter().map(|(_, t)| t.clone()).collect();
+                Type::Proc(param_t, Box::new(return_t.clone()))
+            }
             Val::Str(_) => Type::Str,
             Val::Arr(_) => Type::Arr,
             Val::Char(_) => Type::Char,
@@ -194,6 +197,7 @@ pub enum Type {
     Arr,
     Char,
     Auto,
+    Proc(Vec<Type>, Box<Type>),
 }
 
 impl Type {
@@ -211,6 +215,8 @@ impl Type {
             Arr => String::from("Arr"),
             Char => String::from("Char"),
             Auto => String::from("Auto"),
+            Proc(param, ret) =>
+                format!("({} -> {})", param.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "), ret.to_string()),
         }
     }
     fn gen_type_error(expected: &Type, found: &Type) -> String {
@@ -238,13 +244,14 @@ impl Type {
 
 #[derive(Clone, Debug)]
 pub struct ProcVal {
-    params: Vec<String>,
+    params: Vec<(Tok, Type)>,
+    return_t: Type,
     body: Block,
 }
 
 impl ProcVal {
     pub fn from(p: Proc) -> Self {
-        Self { params: p.params, body: p.body }
+        Self { params: p.params, return_t: p.return_t, body: p.body }
     }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() != self.params.len() {
@@ -253,17 +260,30 @@ impl ProcVal {
                 special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
             });
         }
+
         let scope = Interpreter::from(&i);
         for (k, arg) in c.args.iter().enumerate() {
             let val = i.expr(&arg)?;
-            scope.env.put(self.params[k].clone(), val);
+            let (identifier, t) = &self.params[k];
+            let val = t.coerce(val).map_err(|msg| {
+                let msg = format!("{} (at argument {})", msg, k + 1);
+                Error{ special: None,
+                    msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line 
+                }
+            })?;
+            scope.env.put(identifier.lexeme.clone(), val);
         }
 
         match scope.block(&self.body) {
             Ok(_) => Ok(Val::Unit),
-            Err(Error { special: Some(Special::Return(e)), .. }) => {
+            Err(Error { special: Some(Special::Return(e, r)), .. }) => {
                 if let Some(e) = e {
-                    Ok(scope.expr(&e)?)
+                    let return_val = self.return_t.coerce(scope.expr(&e)?).map_err(|msg| {
+                        Error { special: None,
+                            msg, col_start: r.col_start, col_end: r.col_end, line: r.line
+                        }
+                    })?;
+                    Ok(return_val)
                 } else {
                     Ok(Val::Unit)
                 }
