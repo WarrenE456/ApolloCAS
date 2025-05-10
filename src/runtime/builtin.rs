@@ -1,5 +1,6 @@
 use crate::runtime::*;
 use crate::runtime::val::Num;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // TODO inverse trig and other other asortment of other asortments of other assortermentnetms... of functions
 // round floor ceil
@@ -16,7 +17,38 @@ enum BuiltInT {
     Exit,
     Create,
     Graph,
+    Clock,
+    Sleep,
 }
+
+// struct Template {
+//     name: String,
+//     types: Vec<Type>,
+// }
+//
+// impl Template {
+//     fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
+//         if self.types.len() != c.args.len() {
+//             let msg = format!("{} expects {} arguments but found {}.", self.name, self.types.len(), c.args.len());
+//             return Err(Error { special: None,
+//                 msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
+//             })
+//         }
+//
+//         let mut vals = Vec::new();
+//         for (k, (arg, t)) in c.args.iter().zip(self.types.iter()).enumerate() {
+//             let val = t.coerce(i.expr(&arg)?).map_err(|msg| {
+//                 let msg = format!("{} (at argument {})", msg, k);
+//                 Error { special: None,
+//                     msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
+//                 }
+//             })?;
+//             vals.push(val);
+//         }
+//
+//
+//     }
+// }
 
 impl BuiltInT {
     pub fn to_string(&self) -> String {
@@ -28,11 +60,13 @@ impl BuiltInT {
             Println => "println",
             Sqrt => "sqrt",
             Sin => "lin",
-            Cos => "los",
+            Cos => "cos",
             Tan => "tan",
             Exit => "exit",
             Create => "create",
             Graph => "graph",
+            Clock => "clock",
+            Sleep => "sleep",
         })
     }
 }
@@ -57,6 +91,8 @@ impl BuiltIn {
             "exit" => Exit,
             "create" => Create,
             "graph" => Graph,
+            "clock" => Clock,
+            "sleep" => Sleep,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -213,6 +249,38 @@ impl BuiltIn {
             })
         }
     }
+    fn type_check(t: Vec<Type>, args: &Vec<Expr>, c: &Call, i: &Interpreter) -> Result<Vec<Val>, Error> {
+        if t.len() != args.len() {
+            let msg = format!("Expected {} arguments but found {}.", t.len(), args.len());
+            return Err(Error { special: None,
+                msg, col_start: c.identifier.col_start, col_end: c.identifier.col_end, line: c.identifier.line
+            })
+        }
+        let mut vals = Vec::new();
+        for (k, (arg, t)) in args.iter().zip(t.iter()).enumerate() {
+            let val = t.coerce(i.expr(arg)?).map_err(|msg| {
+                let msg = format!("{} (at argument {})", msg, k + 1);
+                Error { special: None,
+                    msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
+                }
+            })?;
+            vals.push(val);
+        }
+        Ok(vals)
+    }
+    fn clock(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        let _ = Self::type_check(vec![], &c.args, c, i)?;
+        let current_system_time = SystemTime::now();
+        let duration_since_epoch = current_system_time.duration_since(UNIX_EPOCH).unwrap();
+        let milliseconds_timestamp  = duration_since_epoch.as_millis() as i64;
+        Ok(Val::Num(Num::Int(milliseconds_timestamp)))
+    }
+    fn sleep(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        let vals = Self::type_check(vec![Type::Int], &c.args, c, i)?;
+        let ms = unsafe { vals[0].unwrap::<i64>() } as u64;
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        Ok(Val::Unit)
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -226,6 +294,8 @@ impl BuiltIn {
             Exit => Self::exit(c, i),
             Create => Self::create(c, i),
             Graph => Self::graph(c, i),
+            Clock => Self::clock(c, i),
+            Sleep => Self::sleep(c, i),
             _ => self.basic(c, 1, i),
         }
     }

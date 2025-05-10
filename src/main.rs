@@ -75,7 +75,6 @@ fn main() {
             grapher.update();
             thread::sleep(Duration::from_millis(60));
         }
-        println!("Exiting");
     });
 
     apollo_handle.join().unwrap();

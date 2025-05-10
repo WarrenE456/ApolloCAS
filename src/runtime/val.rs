@@ -110,6 +110,16 @@ impl Val {
             Char(c) => (*c as char).to_string(),
         }
     }
+    pub unsafe fn unwrap<T>(&self) -> T {
+        use std::mem::transmute_copy;
+        match self {
+            Val::Num(Num::Int(i)) => transmute_copy::<i64, T>(&i),
+            Val::Num(Num::Float(f)) => transmute_copy::<f64, T>(&f),
+            Val::Bool(b) => transmute_copy::<bool, T>(&b),
+            Val::Char(c) => transmute_copy::<u8, T>(&c),
+            _ => unreachable!()
+        }
+    }
     pub fn get_type(&self) -> Type {
         match self {
             Val::Num(Num::Int(_)) => Type::Int,
@@ -127,7 +137,6 @@ impl Val {
             Val::Char(_) => Type::Char,
         }
     }
-    // TODO remove
     pub fn type_as_string(&self) -> String {
         self.get_type().to_string()
     }
