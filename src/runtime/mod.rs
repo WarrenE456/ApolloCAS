@@ -9,7 +9,7 @@ use crate::mem::heap::{Heap, HeapVal, HeapIter};
 use crate::graph::GraphSignal;
 use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
-use crate::runtime::{builtin::BuiltIn, val::Num};
+use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
 
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -267,12 +267,18 @@ impl<'a> Interpreter {
         self.expr(e)
     }
     fn var(&self, a: &Var) -> Result<(), Error> {
-        let val = a.t.coerce(self.expr(&a.value)?).map_err(|msg| {
+        let val = self.expr(&a.value)?;
+        let val = a.t.coerce(val).map_err(|msg| {
             Error { special: None, msg,
                 col_start: a.op.col_start, col_end: a.op.col_end, line: a.op.line
             }
         })?;
-        self.env.def(a.identifier.clone(), val.clone())
+        let t = if Type::Auto == a.t {
+            val.get_type()
+        } else {
+            a.t.clone()
+        };
+        self.env.def(a.identifier.clone(), val.clone(), t)
     }
     fn set(&self, s: &Set) -> Result<(), Error> {
         let val = self.expr(&s.value)?;
@@ -282,6 +288,7 @@ impl<'a> Interpreter {
         self.env.def(
             d.identifier.clone(),
             Val::Function(d.args.clone(), d.value.clone()),
+            Type::Fn
         )?;
         Ok(())
     }
@@ -344,7 +351,8 @@ impl<'a> Interpreter {
             Ok(())
     }
     fn proc(&self, p: Proc) -> Result<(), Error> {
-        self.env.def(p.name.clone(), Val::Proc(ProcVal::from(p)))
+        // TODO types
+        self.env.def(p.name.clone(), Val::Proc(ProcVal::from(p)), Type::Any)
     }
     fn set_index(&self, s: &SetIndex) -> Result<(), Error> {
         self.expr(&s.index.expr)?

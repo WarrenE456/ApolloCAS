@@ -19,8 +19,8 @@ impl<'a> GC {
     pub fn mark(&self, e: &Env) {
         let mp = e.mp.lock().unwrap();
         mp.iter().for_each(|(_, v)| match v {
-            Val::Arr(addr) => self.heap.mark(*addr),
-            Val::Str(addr) => self.heap.mark(*addr),
+            (_,Val::Arr(addr)) => self.heap.mark(*addr),
+            (_,Val::Str(addr)) => self.heap.mark(*addr),
             _ => {}
         });
         e.clear_moved_children();

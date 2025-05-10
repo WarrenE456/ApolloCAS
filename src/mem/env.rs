@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, Weak, Arc};
 
-use crate::runtime::val::Val;
+use crate::runtime::val::{Val, Type};
 use crate::error::Error;
 use crate::scanner::tok::Tok;
 
 pub struct Env {
     parent: Option<Arc<Env>>,
     pub children: Mutex<Vec<Weak<Env>>>,
-    pub mp: Mutex<HashMap<String, Val>>,
+    pub mp: Mutex<HashMap<String, (Type, Val)>>,
 }
 
 impl<'a> Env {
@@ -28,19 +28,19 @@ impl<'a> Env {
         parent_children.push(Arc::downgrade(&_self));
         _self
     }
-    pub fn def(&self, i: Tok, val: Val) -> Result<(), Error> {
+    pub fn def(&self, i: Tok, val: Val, t: Type) -> Result<(), Error> {
         if self.mp.lock().unwrap().contains_key(&i.lexeme) {
             let msg = format!("Attempt to redefine '{}'.", i.lexeme);
             Err(Error {
                 special: None, msg, col_start: i.col_start, col_end: i.col_end, line: i.line
             })
         } else {
-            self.mp.lock().unwrap().insert(i.lexeme, val);
+            self.mp.lock().unwrap().insert(i.lexeme, (t, val));
             Ok(())
         }
     }
     pub fn put(&self, i: String, val: Val) {
-        self.mp.lock().unwrap().insert(i, val);
+        self.mp.lock().unwrap().insert(i, (val.get_type(), val));
     }
     pub fn set(&self, i: Tok, val: Val) -> Result<(), Error> {
         if !self.mp.lock().unwrap().contains_key(&i.lexeme) {
@@ -53,7 +53,13 @@ impl<'a> Env {
                 })
             }
         } else {
-            self.mp.lock().unwrap().insert(i.lexeme, val);
+            let (t, _) = self.mp.lock().unwrap().get(&i.lexeme).unwrap().clone();
+            let val = t.coerce(val).map_err(|msg| {
+                Error {
+                    special: None, msg, col_start: i.col_start, col_end: i.col_end, line: i.line
+                }
+            })?;
+            self.mp.lock().unwrap().insert(i.lexeme, (t, val));
             Ok(())
         }
     }
@@ -70,7 +76,7 @@ impl<'a> Env {
                     })
                 }
             }
-            Some(v) => Ok(v.clone()),
+            Some((_,v)) => Ok(v.clone()),
         }
     }
 }

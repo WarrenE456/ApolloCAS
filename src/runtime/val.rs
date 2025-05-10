@@ -126,22 +126,7 @@ impl Val {
     }
     // TODO remove
     pub fn type_as_string(&self) -> String {
-        use Val::*;
-        use crate::runtime::val;
-        String::from(match self {
-            Num(n) => match n {
-                val::Num::Float(_) => "Float",
-                val::Num::Int(_) => "Int",
-            },
-            Function(..) => "Function",
-            BuiltIn(_) => "BuiltIn",
-            Unit => "Unit",
-            Bool(_) => "Bool",
-            Proc(_) => "Procedure",
-            Str(_) => "String",
-            Arr(_) => "Array",
-            Char(_) => "Char",
-        })
+        self.get_type().to_string()
     }
     fn gen_out_of_range_error(index: &Index, idx: usize, len: usize) -> Error {
         let msg = format!("Index out of bounds. Indexed location {} with object of length {}.", idx, len);
@@ -233,7 +218,7 @@ impl Type {
     }
     pub fn coerce(&self, v: Val) -> Result<Val, String> {
         match self {
-            Self::Any => Ok(v),
+            Self::Any | Self::Auto => Ok(v),
             Self::Float => match v {
                 Val::Num(Num::Float(_)) => Ok(v),
                 Val::Num(Num::Int(n)) => Ok(Val::Num(Num::Float(n as f64))),
