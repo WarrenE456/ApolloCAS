@@ -43,6 +43,9 @@ impl Grapher {
         let event_pump = sdl2.event_pump().unwrap();
         Self { global, graphs: HashMap::new(), graph_rx, v_sub, event_pump, name_to_id: HashMap::new() }
     }
+    pub fn clear(&mut self) {
+        self.graphs.clear();
+    }
     pub fn create(&mut self, name: String) {
         let (id, new_graph) = match self.gen_new_window(&name).map(|window| Graph::new(window)) {
             Ok(Ok(g)) => g,

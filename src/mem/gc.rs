@@ -17,12 +17,14 @@ impl<'a> GC {
         self.heap.reset_marks();
     }
     pub fn mark(&self, e: &Env) {
-        let mp = e.mp.lock().unwrap();
-        mp.iter().for_each(|(_, v)| match v {
-            (_,Val::Arr(addr)) => self.heap.mark(*addr),
-            (_,Val::Str(addr)) => self.heap.mark(*addr),
-            _ => {}
-        });
+        {
+            let mp = e.mp.lock().unwrap();
+            mp.iter().for_each(|(_, v)| match v {
+                (_,Val::Arr(addr)) => self.heap.mark(*addr),
+                (_,Val::Str(addr)) => self.heap.mark(*addr),
+                _ => {}
+            });
+        }
         e.clear_moved_children();
         e.children.lock().unwrap().iter().for_each(|child_env| {
             self.mark(&child_env.upgrade().unwrap());

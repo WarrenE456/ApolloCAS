@@ -54,13 +54,12 @@ fn main() {
         apollo.run();
     });
 
-    // TODO dynamic gc's per second depending on mem usage
     let gc_global = Arc::clone(&global);
     let gc_running = Arc::clone(&running);
     let gc_handle = thread::spawn(move || {
         let gc = GC::new(Arc::clone(&gc_global.read().unwrap().heap));
         while gc_running.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(512));
+            thread::sleep(Duration::from_millis(2048));
             gc.prime();
             gc.mark(&gc_global.read().unwrap().env);
             gc.sweep();
@@ -75,6 +74,7 @@ fn main() {
             grapher.update();
             thread::sleep(Duration::from_millis(60));
         }
+        grapher.clear();
     });
 
     apollo_handle.join().unwrap();

@@ -13,23 +13,26 @@ pub struct Env {
 
 impl<'a> Env {
     pub fn new() -> Self {
-        Self {parent: None, mp: HashMap::new().into(), children: Mutex::new(Vec::new()) }
+        Self { parent: None, mp: HashMap::new().into(), children: Mutex::new(Vec::new()) }
     }
     pub fn clear_moved_children(&self) {
         let mut children = self.children.lock().unwrap();
         children.retain(|child| child.upgrade().is_some())
     }
     pub fn from(parent: Arc<Env>) -> Arc<Self> {
-        let mut parent_children = parent.children.lock().unwrap();
         let _self = Arc::new(Self {
             parent: Some(Arc::clone(&parent)), mp: HashMap::new().into(),
             children: Mutex::new(Vec::new())
         });
-        parent_children.push(Arc::downgrade(&_self));
+        {
+            let mut parent_children = parent.children.lock().unwrap();
+            parent_children.push(Arc::downgrade(&_self));
+        }
         _self
     }
     pub fn def(&self, i: Tok, val: Val, t: Type) -> Result<(), Error> {
-        if self.mp.lock().unwrap().contains_key(&i.lexeme) {
+        let contains = self.mp.lock().unwrap().contains_key(&i.lexeme);
+        if  contains {
             let msg = format!("Attempt to redefine '{}'.", i.lexeme);
             Err(Error {
                 special: None, msg, col_start: i.col_start, col_end: i.col_end, line: i.line
@@ -43,7 +46,8 @@ impl<'a> Env {
         self.mp.lock().unwrap().insert(i, (val.get_type(), val));
     }
     pub fn set(&self, i: Tok, val: Val) -> Result<(), Error> {
-        if !self.mp.lock().unwrap().contains_key(&i.lexeme) {
+        let contains = self.mp.lock().unwrap().contains_key(&i.lexeme);
+        if !contains {
             if let Some(p) = &self.parent {
                 p.set(i, val)
             } else {
