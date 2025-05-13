@@ -113,10 +113,12 @@ impl Val {
     pub unsafe fn unwrap<T>(&self) -> T {
         use std::mem::transmute_copy;
         match self {
-            Val::Num(Num::Int(i)) => transmute_copy::<i64, T>(&i),
-            Val::Num(Num::Float(f)) => transmute_copy::<f64, T>(&f),
-            Val::Bool(b) => transmute_copy::<bool, T>(&b),
-            Val::Char(c) => transmute_copy::<u8, T>(&c),
+            Val::Num(Num::Int(i)) => transmute_copy::<i64, T>(i),
+            Val::Num(Num::Float(f)) => transmute_copy::<f64, T>(f),
+            Val::Bool(b) => transmute_copy::<bool, T>(b),
+            Val::Char(c) => transmute_copy::<u8, T>(c),
+            Val::Arr(arr) => transmute_copy::<u64, T>(arr),
+            Val::Str(s) => transmute_copy::<u64, T>(s),
             _ => unreachable!()
         }
     }

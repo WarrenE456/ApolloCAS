@@ -19,6 +19,9 @@ enum BuiltInT {
     Graph,
     Clock,
     Sleep,
+    Push,
+    Pop,
+    Range,
 }
 
 // struct Template {
@@ -67,6 +70,9 @@ impl BuiltInT {
             Graph => "graph",
             Clock => "clock",
             Sleep => "sleep",
+            Push => "push",
+            Pop => "pop",
+            Range => "range",
         })
     }
 }
@@ -93,6 +99,9 @@ impl BuiltIn {
             "graph" => Graph,
             "clock" => Clock,
             "sleep" => Sleep,
+            "push" => Push,
+            "pop" => Pop,
+            "range" => Range,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -281,6 +290,70 @@ impl BuiltIn {
         std::thread::sleep(std::time::Duration::from_millis(ms));
         Ok(Val::Unit)
     }
+    fn push(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 2 {
+            let msg= format!("push expected 2 arguments (the Arr/Str, and the value to push), but found {}.", c.args.len());
+            return Err(Error::from(msg, &c.identifier, &c.rparen));
+        }
+        match i.expr(&c.args[0])? {
+            Val::Arr(addr) => {
+                i.heap.push_arr(addr, i.expr(&c.args[1])?);
+            }
+            Val::Str(addr) => {
+                match i.expr(&c.args[1])? {
+                    Val::Char(c) => i.heap.push_str(addr, c),
+                    other => {
+                        let msg = format!("Attempt to push a non-Char value of type {} to a Str.", other.type_as_string());
+                        return Err(Error::from(msg, &c.identifier, &c.rparen));
+                    }
+                }
+            }
+            other => {
+                let msg = format!("Attempt to push into a value of type {}.", other.type_as_string());
+                return Err(Error::from(msg, &c.identifier, &c.rparen));
+            }
+        }
+        Ok(Val::Unit)
+    }
+    fn pop(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 1 {
+            let msg= format!("pop expected 1 argument (the Arr/Str to pop from), but found {}.", c.args.len());
+            return Err(Error::from(msg, &c.identifier, &c.rparen));
+        }
+        match i.expr(&c.args[0])? {
+            Val::Arr(addr) => {
+                Ok(i.heap.pop_arr(addr).unwrap_or(Val::Unit))
+            }
+            Val::Str(addr) => {
+                Ok(i.heap.pop_arr(addr).unwrap_or(Val::Unit))
+            }
+            other => {
+                let msg = format!("Attempt to pop from value of type {}.", other.type_as_string());
+                Err(Error::from(msg, &c.identifier, &c.rparen))
+            }
+        }
+    }
+    fn range(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() == 1 {
+            let index = unsafe {
+                Type::Int
+                    .coerce(i.expr(&c.args[0])?)
+                    .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
+                    .unwrap::<i64>()
+            };
+            if index < 0 {
+                let msg = String::from("Inputs to range function must be positive.");
+                return Err(Error::from(msg, &c.identifier, &c.rparen));
+            }
+            let addr = i.heap.alloc(HeapVal::Arr((0..index).map(|i| Val::Num(Num::Int(i))).collect::<Vec<_>>()));
+            Ok(Val::Arr(addr))
+        } else if c.args.len() == 3 {
+            todo!()
+        } else {
+            let msg= format!("Range expected 1 or 3 arguments, but found {}.", c.args.len());
+            return Err(Error::from(msg, &c.identifier, &c.rparen));
+        }
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -296,6 +369,9 @@ impl BuiltIn {
             Graph => Self::graph(c, i),
             Clock => Self::clock(c, i),
             Sleep => Self::sleep(c, i),
+            Push => Self::push(c, i),
+            Pop => Self::pop(c, i),
+            Range => Self::range(c, i),
             _ => self.basic(c, 1, i),
         }
     }

@@ -87,11 +87,35 @@ impl Heap {
             _ => unreachable!(),
         });
     }
+    pub fn push_arr(&self, id: u64, v: Val) {
+        self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
+            HeapVal::Arr(arr) => arr.push(v),
+            _ => unreachable!(),
+        });
+    }
+    pub fn pop_arr(&self, id: u64) -> Option<Val> {
+        self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
+            HeapVal::Arr(arr) => arr.pop(),
+            _ => unreachable!(),
+        }).unwrap_or(None)
+    }
     pub fn set_str(&self, addr: u64, idx: usize, c: u8) {
         self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str[idx] = c,
             _ => unreachable!(),
         });
+    }
+    pub fn push_str(&self, addr: u64, c: u8) {
+        self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
+            HeapVal::Str(str) => str.push(c),
+            _ => unreachable!(),
+        });
+    }
+    pub fn pop_str(&self, addr: u64) -> Option<Val> {
+        self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
+            HeapVal::Str(str) => str.pop().map(|c| Val::Char(c)),
+            _ => unreachable!(),
+        }).unwrap_or(None)
     }
     pub fn to_string(&self, addr: u64) -> String {
         let reader = self.mem.read().unwrap();

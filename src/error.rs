@@ -18,6 +18,14 @@ pub struct Error {
     pub special: Option<Special>
 }
 
+impl Error {
+    pub fn from(msg: String, start: &Tok, end: &Tok) -> Self {
+        Self { special: None,
+            msg, line: start.line, col_start: start.col_start, col_end: end.col_end
+        }
+    }
+}
+
 fn replace_tabs_w_4spaces(s: &String) -> String {
     s.bytes()
         .into_iter()
