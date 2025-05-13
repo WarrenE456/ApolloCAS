@@ -147,11 +147,11 @@ impl<'a> Interpreter {
         }
     }
     fn comp(&self, c: &Comp) -> Result<Val, Error> {
-        let vals = vec![self.expr(&c.operands.first().unwrap())?];
+        let mut prev = self.expr(&c.operands.first().unwrap())?;
         for (next, op) in std::iter::zip(c.operands[1..c.operands.len()].iter(), c.operators.iter()) {
-            let val = self.expr(next)?;
+            let next = self.expr(next)?;
             use TokType::*;
-            let val = match (vals.last().unwrap(), &val) {
+            let comp_result = match (prev, &next) {
                 (Val::Num(a), Val::Num(b)) => {
                     let a = a.to_float();
                     let b = b.to_float();
@@ -166,8 +166,8 @@ impl<'a> Interpreter {
                     }
                 }
                 (Val::Bool(a), Val::Bool(b)) => match op.t {
-                    Equal => a == b,
-                    BangEqual => a != b,
+                    Equal => a == *b,
+                    BangEqual => a != *b,
                     _ => {
                         let msg = String::from("Attempt to do non-equality comparison with Bools.");
                         return Err(Error { special: None,
@@ -185,9 +185,10 @@ impl<'a> Interpreter {
                     });
                 }
             };
-            if val == false {
+            if comp_result == false {
                 return Ok(Val::Bool(false));
             }
+            prev = next;
         }
         Ok(Val::Bool(true))
     }
