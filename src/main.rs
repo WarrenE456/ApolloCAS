@@ -48,12 +48,6 @@ fn main() {
     let global = Arc::new(RwLock::new(Interpreter::new(graph_tx.clone(), heap)));
     let running = Arc::new(AtomicBool::new(true));
     
-    let apollo_global = Arc::clone(&global);
-    let apollo_handle = thread::spawn(move || {
-        let apollo = Apollo::new(apollo_global, graph_tx);
-        apollo.run();
-    });
-
     let gc_global = Arc::clone(&global);
     let gc_running = Arc::clone(&running);
     let gc_handle = thread::spawn(move || {
@@ -74,11 +68,23 @@ fn main() {
             grapher.update();
             thread::sleep(Duration::from_millis(60));
         }
-        grapher.clear();
+        drop(grapher);
+    });
+
+    let clean_up_running= Arc::clone(&running);
+    let clean_up = move || {
+        clean_up_running.store(false, Ordering::SeqCst);
+
+        thread::sleep(Duration::from_secs(1));
+        grapher_handle.join().unwrap();
+        gc_handle.join().unwrap();
+    };
+    
+    let apollo_global = Arc::clone(&global);
+    let apollo_handle = thread::spawn(move || {
+        let apollo = Apollo::new(apollo_global, graph_tx);
+        apollo.run(Box::new(clean_up));
     });
 
     apollo_handle.join().unwrap();
-    running.store(false, Ordering::SeqCst);
-    gc_handle.join().unwrap();
-    grapher_handle.join().unwrap();
 }
