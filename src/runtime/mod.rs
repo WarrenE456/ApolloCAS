@@ -34,6 +34,7 @@ impl<'a> Interpreter {
             Int => Ok(Val::Num(Num::Int(tok.lexeme.parse().unwrap()))),
             True => Ok(Val::Bool(true)),
             False => Ok(Val::Bool(false)),
+            Char => Ok(Val::Char(tok.lexeme.as_bytes()[0])),
             Str => {
                 let addr = self.heap.alloc(HeapVal::Str(Vec::from(tok.lexeme.as_bytes())));
                 Ok(Val::Str(addr))
@@ -170,6 +171,16 @@ impl<'a> Interpreter {
                     BangEqual => a != *b,
                     _ => {
                         let msg = String::from("Attempt to do non-equality comparison with Bools.");
+                        return Err(Error { special: None,
+                            msg, line: op.line, col_start: op.col_start, col_end: op.col_end
+                        });
+                    }
+                }
+                (Val::Char(a), Val::Char(b)) => match op.t {
+                    Equal => a == *b,
+                    BangEqual => a != *b,
+                    _ => {
+                        let msg = String::from("Attempt to do non-equality comparison with Chars.");
                         return Err(Error { special: None,
                             msg, line: op.line, col_start: op.col_start, col_end: op.col_end
                         });

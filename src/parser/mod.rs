@@ -140,7 +140,7 @@ impl Parser {
             format!("'{}'", next.lexeme)
         };
         match next.t {
-            TokType::Float | TokType::Int | TokType::True | TokType::False => {
+            TokType::Float | TokType::Int | TokType::True | TokType::False | TokType::Str | TokType::Char => {
                 Ok(Expr::Literal(next))
             }
             TokType::Identifier => {
@@ -149,9 +149,6 @@ impl Parser {
                 } else {
                     Ok(Expr::Literal(next))
                 }
-            }
-            TokType::Str => {
-                Ok(Expr::Literal(next))
             }
             TokType::LBrac => self.arr(),
             _ => return Err(Error {

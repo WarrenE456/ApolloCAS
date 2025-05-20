@@ -93,8 +93,8 @@ impl<'a> Scanner<'a> {
             .to_owned();
         Tok { lexeme, line: self.line.get(), col_end: self.col.get(), col_start: self.col.get() - len, t }
     }
-    fn make_tok_with_offset(&self, t: TokType, len: usize, offset: usize) -> Tok {
-        let lexeme = std::str::from_utf8(&self.program[(self.p_pos.get() + offset)..self.pos.get()])
+    fn make_tok_with_offset(&self, t: TokType, offset: usize, len: usize) -> Tok {
+        let lexeme = std::str::from_utf8(&self.program[self.p_pos.get() + offset..self.pos.get()])
             .unwrap()
             .to_owned();
         Tok { lexeme, line: self.line.get(), col_end: self.col.get(), col_start: self.col.get() - len, t }
@@ -103,7 +103,6 @@ impl<'a> Scanner<'a> {
         Error { msg, line: self.line.get(), col_start: self.col.get(), col_end: self.col.get(), special: None}
     }
     fn get_next_tok(&self) -> Option<Result<Tok, Error>> {
-        // TODO macro to remove the Some(Ok... garbage
         use TokType::*;
         self.p_pos.set(self.pos.get());
         let c = self.advance();
@@ -178,9 +177,22 @@ impl<'a> Scanner<'a> {
                     let _ = self.advance();
                     len += 1;
                 }
-                let tok = self.make_tok_with_offset(Str, len, 1);
+                let tok = self.make_tok_with_offset(Str, 1, len);
                 let _ = self.advance();
                 Some(Ok(tok))
+            }
+            b'\'' => {
+                let _ = self.advance();
+                if self.peek() == b'\'' {
+                    let tok = self.make_tok_with_offset(Char, 1, 0);
+                    let _ = self.advance();
+                    Some(Ok(tok))
+                } else {
+                    println!("{}", self.peek() as char);
+                    Some(Err(
+                        self.gen_error(String::from("Expected closing quote after character.")))
+                    )
+                }
             }
             b' ' | b'\r' => {
                 self.get_next_tok()
