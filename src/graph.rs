@@ -101,6 +101,7 @@ impl Grapher {
 }
 
 const FILL_COLOR: Color = Color::RGB(30, 30, 30);
+const N: f64 = 1000.;
 
 pub struct Graph {
     canvas: RefCell<WindowCanvas>,
@@ -110,7 +111,6 @@ pub struct Graph {
     max_x: f64,
     min_y: f64,
     max_y: f64,
-    n: usize,
     fns: HashMap<String, Expr>,
 }
 
@@ -130,28 +130,33 @@ impl Graph {
         let (width, height) = canvas.borrow().window().size();
 
         Ok((id, Self {
-            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, n: 1000, fns: HashMap::new(), width, height
+            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, fns: HashMap::new(), width, height
         }))
     }
-    fn convert_coords(&self, x: f64, y: f64) -> (i32, i32) {
+    fn convert_coords(&self, x: f64, y: f64) -> Option<(i32, i32)> {
         let x: i32 = ((x - self.min_x) / (self.max_x - self.min_x) * (self.width as f64)) as i32;
-        let y: i32 = (self.height as i32) - ((y - self.min_y) / (self.max_y - self.min_y) * (self.height as f64)) as i32;
-        (x, y)
+        if !y.is_infinite() && !y.is_nan() {
+            let y: i32 = (self.height as i32).checked_sub(((y - self.min_y) / (self.max_y - self.min_y) * (self.height as f64)) as i32)?;
+            Some((x, y))
+        }
+        else {
+            None
+        }
     }
     fn draw_line(&self, x_1: f64, y_1: f64, x_2: f64, y_2: f64, color: Color) -> Result<(), String> {
-        let (x_1, y_1) = self.convert_coords(x_1, y_1);
-        let (x_2, y_2) = self.convert_coords(x_2, y_2);
-        {
-            let mut canvas = self.canvas.borrow_mut();
-            canvas.set_draw_color(color);
-            canvas.draw_line(Point::new(x_1, y_1), Point::new(x_2, y_2))?;
+        if let Some((x_1, y_1)) = self.convert_coords(x_1, y_1) {
+            if let Some((x_2, y_2)) = self.convert_coords(x_2, y_2) {
+                let mut canvas = self.canvas.borrow_mut();
+                canvas.set_draw_color(color);
+                canvas.draw_line(Point::new(x_1, y_1), Point::new(x_2, y_2))?;
+            }
         }
         Ok(())
     }
     fn graph(&self, e: &Expr, i: &Arc<RwLock<Interpreter>>) {
         let i = &i.read().unwrap();
         let scope = Interpreter::from(i);
-        let dx = (self.max_x - self.min_x) / (self.n as f64);
+        let dx = (self.max_x - self.min_x) / N;
 
         let mut x_1 = self.min_x;
         while x_1 < self.max_x {

@@ -20,6 +20,8 @@ use mem::gc::GC;
 
 /* TODO
 *
+* fix "i in range 1 mil" error
+*
 *
 * fix window resize issue
 * fix segfault
