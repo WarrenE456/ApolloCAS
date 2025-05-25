@@ -101,6 +101,7 @@ impl Grapher {
 }
 
 const FILL_COLOR: Color = Color::RGB(30, 30, 30);
+const DRAW_COLOR: Color = Color::RGB(240, 240, 240);
 const N: f64 = 1000.;
 
 pub struct Graph {
@@ -169,7 +170,7 @@ impl Graph {
                 Ok(Val::Num(v)) => v.to_float(),
                 _ => continue,
             };
-            let _ = self.draw_line(x_1, y_1, x_2, y_2, Color::RED);
+            let _ = self.draw_line(x_1, y_1, x_2, y_2, DRAW_COLOR);
             x_1 = x_2;
         }
     }
