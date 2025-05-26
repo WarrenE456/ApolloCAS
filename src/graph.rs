@@ -25,6 +25,14 @@ pub enum GraphSignal {
         fn_name: String,
         e: Expr,
     },
+    Set {
+        graph_name: String,
+        minx: f64,
+        maxx: f64,
+        miny: f64,
+        maxy: f64,
+        grid_lines: bool,
+    }
 }
 
 pub struct Grapher {
@@ -85,6 +93,23 @@ impl Grapher {
             match signal {
                 Create(name) => self.create(name),
                 Graph {graph_name, fn_name, e} => self.graph(&graph_name, fn_name, e),
+                Set {
+                    graph_name, minx, maxx, miny, maxy, grid_lines
+                } => {
+                    match self.name_to_id.get(&graph_name) {
+                        Some(id) => {
+                            let g = self.graphs.get_mut(id).unwrap();
+                            g.min_x = minx;
+                            g.max_x = maxx;
+                            g.min_y = miny;
+                            g.max_y = maxy;
+                            g.grid_lines = grid_lines;
+                        }
+                        None => {
+                            println!("No such graph '{}'.", graph_name);
+                        }
+                    }
+                }
             }
         }
     }
@@ -102,6 +127,7 @@ impl Grapher {
 
 const FILL_COLOR: Color = Color::RGB(30, 30, 30);
 const DRAW_COLOR: Color = Color::RGB(240, 240, 240);
+const GRID_COLOR: Color = Color::RGB(150, 150, 150);
 const N: f64 = 1000.;
 
 pub struct Graph {
@@ -112,6 +138,7 @@ pub struct Graph {
     max_x: f64,
     min_y: f64,
     max_y: f64,
+    grid_lines: bool,
     fns: HashMap<String, Expr>,
 }
 
@@ -131,7 +158,7 @@ impl Graph {
         let (width, height) = canvas.borrow().window().size();
 
         Ok((id, Self {
-            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, fns: HashMap::new(), width, height
+            canvas, min_x: -10.0, max_x: 10.0, min_y: -10.0, max_y: 10.0, fns: HashMap::new(), width, height, grid_lines: true
         }))
     }
     fn convert_coords(&self, x: f64, y: f64) -> Option<(i32, i32)> {
@@ -154,6 +181,10 @@ impl Graph {
         }
         Ok(())
     }
+    fn draw_grid_lines(&self) {
+        let _ = self.draw_line(self.min_x, 0., self.max_x, 0., GRID_COLOR);
+        let _ = self.draw_line(0., self.min_y, 0., self.max_y, GRID_COLOR);
+    }
     fn graph(&self, e: &Expr, i: &Arc<RwLock<Interpreter>>) {
         let i = &i.read().unwrap();
         let scope = Interpreter::from(i);
@@ -174,12 +205,15 @@ impl Graph {
             x_1 = x_2;
         }
     }
-    // TODO remove status maybe
     pub fn render(&mut self, i: &Arc<RwLock<Interpreter>>) {
         {
             let mut canvas = self.canvas.borrow_mut();
             canvas.set_draw_color(FILL_COLOR);
             canvas.clear();
+        }
+
+        if self.grid_lines {
+            self.draw_grid_lines();
         }
 
         for (_, e) in self.fns.iter() {

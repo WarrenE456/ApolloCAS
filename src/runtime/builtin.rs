@@ -22,6 +22,7 @@ enum BuiltInT {
     Push,
     Pop,
     Range,
+    Param,
 }
 
 // struct Template {
@@ -62,7 +63,7 @@ impl BuiltInT {
             Print => "print",
             Println => "println",
             Sqrt => "sqrt",
-            Sin => "lin",
+            Sin => "sin",
             Cos => "cos",
             Tan => "tan",
             Exit => "exit",
@@ -73,6 +74,7 @@ impl BuiltInT {
             Push => "push",
             Pop => "pop",
             Range => "range",
+            Param => "param",
         })
     }
 }
@@ -86,6 +88,7 @@ impl BuiltIn {
     pub fn is_builtin(s: &str) -> Option<Self> {
         use BuiltInT::*;
         let t = match s {
+            "param" => Param,
             "log" => Log,
             "ln" => Ln,
             "print" => Print,
@@ -258,15 +261,15 @@ impl BuiltIn {
             })
         }
     }
-    fn type_check(t: Vec<Type>, args: &Vec<Expr>, c: &Call, i: &Interpreter) -> Result<Vec<Val>, Error> {
-        if t.len() != args.len() {
-            let msg = format!("Expected {} arguments but found {}.", t.len(), args.len());
+    fn type_check(t: Vec<Type>, c: &Call, i: &Interpreter) -> Result<Vec<Val>, Error> {
+        if t.len() != c.args.len() {
+            let msg = format!("Expected {} arguments but found {}.", t.len(), c.args.len());
             return Err(Error { special: None,
                 msg, col_start: c.identifier.col_start, col_end: c.identifier.col_end, line: c.identifier.line
             })
         }
         let mut vals = Vec::new();
-        for (k, (arg, t)) in args.iter().zip(t.iter()).enumerate() {
+        for (k, (arg, t)) in c.args.iter().zip(t.iter()).enumerate() {
             let val = t.coerce(i.expr(arg)?).map_err(|msg| {
                 let msg = format!("{} (at argument {})", msg, k + 1);
                 Error { special: None,
@@ -278,14 +281,14 @@ impl BuiltIn {
         Ok(vals)
     }
     fn clock(c: &Call, i: &Interpreter) -> Result<Val, Error> {
-        let _ = Self::type_check(vec![], &c.args, c, i)?;
+        let _ = Self::type_check(vec![], c, i)?;
         let current_system_time = SystemTime::now();
         let duration_since_epoch = current_system_time.duration_since(UNIX_EPOCH).unwrap();
         let milliseconds_timestamp  = duration_since_epoch.as_millis() as i64;
         Ok(Val::Num(Num::Int(milliseconds_timestamp)))
     }
     fn sleep(c: &Call, i: &Interpreter) -> Result<Val, Error> {
-        let vals = Self::type_check(vec![Type::Int], &c.args, c, i)?;
+        let vals = Self::type_check(vec![Type::Int], c, i)?;
         let ms = unsafe { vals[0].unwrap::<i64>() } as u64;
         std::thread::sleep(std::time::Duration::from_millis(ms));
         Ok(Val::Unit)
@@ -354,9 +357,28 @@ impl BuiltIn {
             return Err(Error::from(msg, &c.identifier, &c.rparen));
         }
     }
+    fn param(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        use Type::*;
+        let args = Self::type_check(vec![Str, Float, Float, Float, Float, Bool], c, i)?;
+        let graph_name_id = unsafe { args[0].unwrap::<u64>() };
+        let graph_name = match i.heap.get(graph_name_id) {
+            Some(HeapVal::Str(s)) => String::from_utf8(s).unwrap(),
+            _ => unreachable!(),
+        };
+        let minx = unsafe { args[1].unwrap::<f64>() };
+        let maxx = unsafe { args[2].unwrap::<f64>() };
+        let miny = unsafe { args[3].unwrap::<f64>() };
+        let maxy = unsafe { args[4].unwrap::<f64>() };
+        let grid_lines = unsafe { args[5].unwrap::<bool>() };
+        let _ = i.graph_tx.send(GraphSignal::Set {
+            graph_name, minx, maxx, miny, maxy, grid_lines
+        });
+        Ok(Val::Unit)
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
+            Param => Self::param(c, i),
             Log => Self::log(c, i),
             Print => Self::print(c, i),
             Println => {
@@ -379,4 +401,5 @@ impl BuiltIn {
         self.t.to_string()
     }
 }
+
 
