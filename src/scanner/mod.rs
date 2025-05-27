@@ -172,7 +172,6 @@ impl<'a> Scanner<'a> {
                 }
             }
             b'"' => {
-                let _ = self.advance();
                 let mut len = 0;
                 while self.peek() != b'"' {
                     if self.peek() == b'\n' {
