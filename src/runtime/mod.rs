@@ -257,12 +257,54 @@ impl<'a> Interpreter {
     fn index(&self, i: &Index) -> Result<Val, Error> {
         self.expr(&i.expr)?.index(self.get_index(&i)?, &i, None, &self.heap)
     }
+    fn concat(&self, c: &Concat) -> Result<Val, Error> {
+        match (self.expr(&c.l)?, self.expr(&c.r)?) {
+            (Val::Str(a), Val::Str(b))
+            | (Val::Str(a), Val::Arr(b))
+            | (Val::Arr(a), Val::Arr(b))
+            | (Val::Arr(a), Val::Str(b)) => {
+                match (self.heap.get(a), self.heap.get(b)) {
+                    (Some(HeapVal::Str(a)), Some(HeapVal::Str(b))) => {
+                        let mut a = a;
+                        a.extend(b);
+                        return Ok(Val::Str(self.heap.alloc(HeapVal::Str(a))));
+                    }
+                    (Some(HeapVal::Str(a)), Some(HeapVal::Arr(b))) => {
+                        let mut a = a;
+                        for val in b {
+                            a.extend(val.to_string(&self.heap).as_bytes());
+                        }
+                        return Ok(Val::Str(self.heap.alloc(HeapVal::Str(a))));
+                    }
+                    (Some(HeapVal::Arr(a)), Some(HeapVal::Arr(b))) => {
+                        let mut a = a;
+                        a.extend(b);
+                        return Ok(Val::Arr(self.heap.alloc(HeapVal::Arr(a))));
+                    }
+                    (Some(HeapVal::Arr(a)), Some(HeapVal::Str(b))) => {
+                        let mut a = a;
+                        let chars = b.iter().map(|c| Val::Char(*c)).collect::<Vec<_>>();
+                        a.extend(chars);
+                        return Ok(Val::Arr(self.heap.alloc(HeapVal::Arr(a))));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            (a, b) => {
+                let s = format!("{}{}", a.to_string(&self.heap), b.to_string(&self.heap))
+                    .as_bytes().iter()
+                    .cloned().collect::<Vec<_>>();
+                return Ok(Val::Str(self.heap.alloc(HeapVal::Str(s))));
+            }
+        }
+    }
     fn expr(&self, e: &Expr) -> Result<Val, Error> {
         use crate::parser::expr::Expr::*;
         return match e {
             Literal(tok) => self.literal(tok),
             Group(e) => self.expr(e),
             Binary(b) => self.binary(b),
+            Concat(c) => self.concat(c),
             Negate(n) => self.negate(n),
             Call(c) => self.call(c),
             Exp(e) => self.exp(e),

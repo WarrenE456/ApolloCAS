@@ -6,6 +6,7 @@ pub enum Expr {
     Arr(Vec<Expr>),
     Group(Box<Expr>),
     Binary(Binary),
+    Concat(Concat),
     Negate(Negate),
     Call(Call),
     Exp(Exp),
@@ -29,6 +30,7 @@ impl Expr {
                         format!("{} {} {}", acc, b.operators[i - 1].lexeme, v.to_string())
                     })
             },
+            Concat(c) => format!("{} {} {}", c.l.to_string(), c.op.lexeme, c.r.to_string()),
             Negate(n) => format!("-{}", n.value.to_string()),
             Call(c) => {
                 let args = c.args
@@ -78,6 +80,13 @@ impl Binary {
 pub struct Negate {
     pub minus: Tok,
     pub value: Box<Expr>
+}
+
+#[derive(Debug, Clone)]
+pub struct Concat {
+    pub l: Box<Expr>,
+    pub op: Tok,
+    pub r: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]

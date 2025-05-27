@@ -22,7 +22,8 @@
 * or -> comp ("or" comp)*
 * comp -> term ((">" | "<" | ">=" | "<=" | "=" | "!=") term)*
 * term -> factor (('+' | '-') factor)*
-* factor -> negate (('*' | '/') negate)*
+* factor -> concat (('*' | '/') concat)*
+* concat -> negate ('++' negate)*
 * negate -> '-'? expo
 * expo -> index ('^' expo )?
 * index -> group ('[' expr ']')*
@@ -201,28 +202,41 @@ impl Parser {
             self.expo()
         }
     }
-    // factor -> negate (('*' | '/') negate)*
+    // concat -> negate ('++' negate)*
+    fn concat(&self) -> Result<Expr, Error> {
+        let mut expr = self.negate()?;
+        while self.is_match(TokType::PlusPlus) {
+            let op = self.advance().clone();
+            let r = Box::new(self.negate()?);
+            expr = Expr::Concat(Concat { l: Box::new(expr), op, r})
+        }
+        Ok(expr)
+    }
+    // factor -> concat (('*' | '/') concat)*
     fn factor(&self) -> Result<Expr, Error> {
-        let expr = self.negate()?;
+        let expr = self.concat()?;
         if self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
             let mut operands = vec![expr];
             let mut ops = Vec::new();
             while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
                 ops.push(self.advance().clone());
-                operands.push(self.negate()?);
+                operands.push(self.concat()?);
             }
             Ok(Expr::Binary(Binary::new(ops, operands)))
         } else {
             Ok(expr)
         }
     }
+    fn is_term_op(&self) -> bool {
+        self.is_match(TokType::Plus) || self.is_match(TokType::Minus)
+    }
     // term -> factor (('+' | '-') factor)*
     fn term(&self) -> Result<Expr, Error> {
         let expr = self.factor()?;
-        if self.is_match(TokType::Plus) || self.is_match(TokType::Minus) {
+        if self.is_term_op() {
             let mut operands = vec![expr];
             let mut ops = Vec::new();
-            while self.is_match(TokType::Plus) || self.is_match(TokType::Minus) {
+            while self.is_term_op() {
                 ops.push(self.advance().clone());
                 operands.push(self.factor()?);
             }
