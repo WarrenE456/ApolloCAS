@@ -20,10 +20,10 @@
 * expr -> term
 * and -> or ("and" or)*
 * or -> comp ("or" comp)*
-* comp -> term ((">" | "<" | ">=" | "<=" | "=" | "!=") term)*
+* comp -> concat ((">" | "<" | ">=" | "<=" | "=" | "!=") concat)*
+* concat -> term ('++' term)*
 * term -> factor (('+' | '-') factor)*
-* factor -> concat (('*' | '/') concat)*
-* concat -> negate ('++' negate)*
+* factor -> negate (('*' | '/') negate)*
 * negate -> '-'? expo
 * expo -> index ('^' expo )?
 * index -> group ('[' expr ']')*
@@ -202,25 +202,15 @@ impl Parser {
             self.expo()
         }
     }
-    // concat -> negate ('++' negate)*
-    fn concat(&self) -> Result<Expr, Error> {
-        let mut expr = self.negate()?;
-        while self.is_match(TokType::PlusPlus) {
-            let op = self.advance().clone();
-            let r = Box::new(self.negate()?);
-            expr = Expr::Concat(Concat { l: Box::new(expr), op, r})
-        }
-        Ok(expr)
-    }
-    // factor -> concat (('*' | '/') concat)*
+    // factor -> negate (('*' | '/') negate)*
     fn factor(&self) -> Result<Expr, Error> {
-        let expr = self.concat()?;
+        let expr = self.negate()?;
         if self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
             let mut operands = vec![expr];
             let mut ops = Vec::new();
             while self.is_match(TokType::Star) || self.is_match(TokType::Slash) {
                 ops.push(self.advance().clone());
-                operands.push(self.concat()?);
+                operands.push(self.negate()?);
             }
             Ok(Expr::Binary(Binary::new(ops, operands)))
         } else {
@@ -245,16 +235,26 @@ impl Parser {
             Ok(expr)
         }
     }
-    // comp -> term ((">" | "<" | ">=" | "<=" | "=" | "!=") term)*
-    fn comp(&self) -> Result<Expr, Error> {
+    // concat -> term ('++' term)*
+    fn concat(&self) -> Result<Expr, Error> {
         let mut expr = self.term()?;
+        while self.is_match(TokType::PlusPlus) {
+            let op = self.advance().clone();
+            let r = Box::new(self.term()?);
+            expr = Expr::Concat(Concat { l: Box::new(expr), op, r})
+        }
+        Ok(expr)
+    }
+    // comp -> concat ((">" | "<" | ">=" | "<=" | "=" | "!=") concat)*
+    fn comp(&self) -> Result<Expr, Error> {
+        let mut expr = self.concat()?;
         use TokType::*;
         if self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual, Equal, BangEqual]) {
             let mut operators = Vec::new();
             let mut operands = vec![expr];
             while self.any_match(&[Greater, GreaterEqual, Lesser, LesserEqual, Equal, BangEqual]) {
                 operators.push(self.advance().clone());
-                operands.push(self.term()?);
+                operands.push(self.concat()?);
             }
             expr = Expr::Comp(Comp { operators, operands });
         }

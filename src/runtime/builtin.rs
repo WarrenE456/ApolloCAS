@@ -23,6 +23,7 @@ enum BuiltInT {
     Pop,
     Range,
     Param,
+    Len,
 }
 
 // struct Template {
@@ -75,6 +76,7 @@ impl BuiltInT {
             Pop => "pop",
             Range => "range",
             Param => "param",
+            Len => "len",
         })
     }
 }
@@ -105,6 +107,7 @@ impl BuiltIn {
             "push" => Push,
             "pop" => Pop,
             "range" => Range,
+            "len" => Len,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -375,6 +378,27 @@ impl BuiltIn {
         });
         Ok(Val::Unit)
     }
+    fn len(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 1 {
+            let msg = format!(
+                "'len' expects 1 argument, the string or array which you wish to know the name of, but found {}.",
+                c.args.len()
+            );
+            Err(Error::from(msg, &c.identifier, &c.rparen))
+        } else {
+            match i.expr(&c.args[0])? {
+                Val::Str(s) => Ok(Val::Num(Num::Int(i.heap.len(s) as i64))),
+                Val::Arr(a) => Ok(Val::Num(Num::Int(i.heap.len(a) as i64))),
+                other => {
+                    let msg = format!(
+                        "'len' expects an argument of type Str or Arr, but found value of type {}.",
+                        other.type_as_string()
+                    );
+                    Err(Error::from(msg, &c.identifier, &c.rparen))
+                }
+            }
+        }
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -394,6 +418,7 @@ impl BuiltIn {
             Push => Self::push(c, i),
             Pop => Self::pop(c, i),
             Range => Self::range(c, i),
+            Len => Self::len(c, i),
             _ => self.basic(c, 1, i),
         }
     }
