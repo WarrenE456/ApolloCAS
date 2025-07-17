@@ -15,7 +15,6 @@ use crate::runtime::{val::Val, Interpreter};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
-
 use std::sync::{Arc, RwLock};
 
 pub enum GraphSignal {
@@ -128,7 +127,7 @@ impl Grapher {
 const FILL_COLOR: Color = Color::RGB(30, 30, 30);
 const DRAW_COLOR: Color = Color::RGB(240, 240, 240);
 const GRID_COLOR: Color = Color::RGB(150, 150, 150);
-const N: f64 = 1000.;
+const N: u64 = 1000;
 
 pub struct Graph {
     canvas: RefCell<WindowCanvas>,
@@ -188,7 +187,7 @@ impl Graph {
     fn graph(&self, e: &Expr, i: &Arc<RwLock<Interpreter>>) {
         let i = &i.read().unwrap();
         let scope = Interpreter::from(i);
-        let dx = (self.max_x - self.min_x) / N;
+        let dx = (self.max_x - self.min_x) / (N as f64);
 
         let mut x_1 = self.min_x;
         while x_1 < self.max_x {

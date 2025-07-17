@@ -3,13 +3,11 @@ use std::env::args;
 use std::fs::read_to_string;
 use std::io::{stdin, stdout, Write};
 use std::sync::{Arc, RwLock};
-use std::sync::mpsc::Sender;
 
 use crate::scanner::Scanner;
 use crate::parser::Parser;
 use crate::runtime::Interpreter;
 use crate::error::Special::Exit;
-use crate::graph::GraphSignal;
 
 fn curly_braces_closed(s: &String) -> bool {
     let s = s.as_bytes();
@@ -20,25 +18,24 @@ fn curly_braces_closed(s: &String) -> bool {
 
 pub struct Apollo {
     global: Arc<RwLock<Interpreter>>,
-    pub graph_tx: Sender<GraphSignal>,
+    // pub graph_tx: Sender<GraphSignal>,
 }
 
 impl<'a> Apollo {
-    pub fn new(global: Arc<RwLock<Interpreter>>, graph_tx: Sender<GraphSignal>) -> Self {
-        Self { global, graph_tx }
+    pub fn new(global: Arc<RwLock<Interpreter>>) -> Self {
+        Self { global }
     }
-    fn exit(clean_up: Box<dyn FnOnce()>, code: i32) {
-        (clean_up)();
+    fn exit(code: i32) {
         std::process::exit(code);
     }
-    fn repl(&self, clean_up: Box<dyn FnOnce()>) {
+    fn repl(&self) {
         macro_rules! handle_error {
             ($x:expr, $l:expr) => {
                 match $x {
                     Ok(line) => line,
                     Err(e) => {
                         if let Some(Exit(code)) = e.special {
-                            Self::exit(clean_up, code);
+                            Self::exit(code);
                             unreachable!()
                         }
                         e.display($l);
@@ -91,18 +88,18 @@ impl<'a> Apollo {
             }
         }
     }
-    fn run_file(&self, args: Vec<String>, clean_up: Box<dyn FnOnce()>) {
+    fn run_file(&self, args: Vec<String>) {
         macro_rules! handle_error {
             ($x:expr, $l:expr) => {
                 match $x {
                     Ok(line) => line,
                     Err(e) => {
                         if let Some(Exit(code)) = e.special {
-                            Self::exit(clean_up, code);
+                            Self::exit(code);
                             unreachable!()
                         }
                         e.display($l);
-                        Self::exit(clean_up, 1);
+                        Self::exit(1);
                         unreachable!()
                     }
                 }
@@ -114,7 +111,7 @@ impl<'a> Apollo {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("Error: Failed to read file '{}'. {}", file_path, e.to_string()); 
-                Self::exit(clean_up, 1);
+                Self::exit(1);
                 unreachable!()
             }
         } + "\n";
@@ -136,17 +133,17 @@ impl<'a> Apollo {
            handle_error!(interpreter.interpret(line), &program_lines); 
         }
     }
-    pub fn run(&self, clean_up: Box<dyn FnOnce()>) {
+    pub fn run(&self) {
         let args = args().collect::<Vec<_>>();
         if args.len() == 1 {
-            self.repl(clean_up);
+            self.repl();
         }
         else if args.len() == 2 {
-            self.run_file(args, clean_up);
+            self.run_file(args);
         }
         else {
             eprintln!("Usage: apallo-cas [path/to/file]");
-            Self::exit(clean_up, 1);
+            Self::exit(1);
         }
 
     }

@@ -11,21 +11,20 @@ use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
 use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
 
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 pub struct Interpreter {
-    graph_tx: Sender<GraphSignal>,
+    // graph_tx: Sender<GraphSignal>,
     pub env: Arc<Env>,
     pub heap: Arc<Heap>,
 }
 
 impl<'a> Interpreter {
-    pub fn new(graph_tx: Sender<GraphSignal>, heap: Arc<Heap>) -> Self {
-        Self { env: Arc::new(Env::new()), graph_tx, heap }
+    pub fn new(heap: Arc<Heap>) -> Self {
+        Self { env: Arc::new(Env::new()), heap }
     }
     pub fn from(other: &'a Interpreter) -> Self {
-        Self { env: Env::from(Arc::clone(&other.env)), graph_tx: other.graph_tx.clone(), heap: Arc::clone(&other.heap) }
+        Self { env: Env::from(Arc::clone(&other.env)), heap: Arc::clone(&other.heap) }
     }
     fn literal(&self, tok: &Tok) -> Result<Val, Error> {
         use TokType::*;
