@@ -531,7 +531,7 @@ impl Parser {
         }
     }
     // for -> 'for' IDENTIFIER 'in' expr block
-    fn fro(&self) -> Result<Statement, Error> {
+    fn _for(&self) -> Result<Statement, Error> {
         let fro = self.advance().clone();
         self.expect(TokType::Identifier, String::from("Expected a variable name after 'for'."))?;
         let identifier = self.advance().clone();
@@ -555,7 +555,7 @@ impl Parser {
             TokType::Continue => Ok(Statement::Continue(self._continue())),
             TokType::Return => Ok(Statement::Return(self._return())),
             TokType::Proc => self.proc().map(|p| Statement::Proc(p)),
-            TokType::For => self.fro(),
+            TokType::For => self._for(),
             _ => self.expr().map(|e| Statement::Expr(e)),
         }
     }

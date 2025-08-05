@@ -1,7 +1,7 @@
 use std::sync::RwLock;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::runtime::val::Val;
 
@@ -35,11 +35,15 @@ pub struct Heap {
     counter: AtomicU64,
     mem: RwLock<HashMap<u64, HeapVal>>,
     marks: RwLock<HashMap<u64, bool>>,
+    hidden_ref: RwLock<HashSet<u64>>,
 }
 
 impl Heap {
     pub fn new() -> Self {
-        Self { counter: AtomicU64::new(0), mem: RwLock::new(HashMap::new()), marks: RwLock::new(HashMap::new()) }
+        Self {
+            counter: AtomicU64::new(0), mem: RwLock::new(HashMap::new()),
+            marks: RwLock::new(HashMap::new()), hidden_ref: RwLock::new(HashSet::new())
+        }
     }
     pub fn reset_marks(&self) {
         self.marks.write().unwrap().iter_mut().for_each(|(_, v)| {*v = false});
@@ -65,12 +69,19 @@ impl Heap {
     }
     pub fn sweep(&self) {
         let mut to_free = Vec::new();
+        let hidden_ref = self.hidden_ref.read().unwrap();
         self.marks.read().unwrap().iter().for_each(|(addr, marked)| {
-            if !marked {
-                to_free.push(*addr) 
+            if !marked && !hidden_ref.contains(addr) {
+                to_free.push(*addr);
             }
         });
         to_free.into_iter().for_each(|addr| self.free(addr));
+    }
+    pub fn add_hidden_ref(&self, addr: u64) {
+        self.hidden_ref.write().unwrap().insert(addr);
+    }
+    pub fn rm_hidden_ref(&self, addr: u64) {
+        self.hidden_ref.write().unwrap().remove(&addr);
     }
     pub fn get(&self, id: u64) -> Option<HeapVal> {
         self.mem.read().unwrap().get(&id).map(|v| (*v).clone())
@@ -153,7 +164,7 @@ impl Heap {
     }
     pub fn alloc(&self, val: HeapVal) -> u64 {
         let addr = self.counter.load(SeqCst);
-        self.counter.store( addr + 1, SeqCst);
+        self.counter.store(addr + 1, SeqCst);
         self.mem.write().unwrap().insert(addr,val);
         self.marks.write().unwrap().insert(addr, false);
         addr

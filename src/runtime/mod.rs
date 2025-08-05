@@ -411,7 +411,7 @@ impl<'a> Interpreter {
             .index(self.get_index(&s.index)?, &s.index.clone(), Some(self.expr(&s.value)?), &self.heap)?;
         Ok(())
     }
-    fn fro(&self, f: &For) -> Result<(), Error> {
+    fn _for(&self, f: &For) -> Result<(), Error> {
         let addr = match self.expr(&f.iter)? {
             Val::Arr(addr) => addr,
             Val::Str(addr) => addr,
@@ -422,12 +422,14 @@ impl<'a> Interpreter {
                 });
             }
         };
+        self.heap.add_hidden_ref(addr);
         let mut iter = HeapIter::new(addr);
         let inner_scope = Interpreter::from(self);
         while let Some(v) = iter.next(&self.heap) {
             inner_scope.env.put(f.identifier.lexeme.clone(), v);
             inner_scope.block(&f.body)?;
         }
+        self.heap.rm_hidden_ref(addr);
         Ok(())
     }
     pub fn interpret(&'a self, stmt: &Statement) -> Result<Option<Val>, Error> {
@@ -446,7 +448,7 @@ impl<'a> Interpreter {
             },
             While(w) => {self.hwile(w)?; Ok(None)}
             Proc(p) => {self.proc(p.clone())?; Ok(None)}
-            For(f) => {self.fro(f)?; Ok(None)}
+            For(f) => {self._for(f)?; Ok(None)}
             Break(e) => Err(e.clone()),
             Continue(e) => Err(e.clone()),
             Return(e) => Err(e.clone()),

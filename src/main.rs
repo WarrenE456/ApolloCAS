@@ -19,7 +19,7 @@ use mem::gc::GC;
 
 /* TODO
 *
-* fix "i in range 1 mil" error
+* range object
 *
 *
 * fix window resize issue
