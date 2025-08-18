@@ -320,12 +320,19 @@ impl<'a> Interpreter {
         self.expr(e)
     }
     fn var(&self, a: &Var) -> Result<(), Error> {
-        let val = self.expr(&a.value)?;
-        let val = a.t.coerce(val).map_err(|msg| {
-            Error { special: None, msg,
-                col_start: a.op.col_start, col_end: a.op.col_end, line: a.op.line
-            }
-        })?;
+        let val = if let Type::Sym(t) = &a.t {
+            let sym_expr = a.value
+                .to_sym()
+                .map_err(|s| Error::from(s, &a.op, &a.op))?.simplify();
+            t.coerce(sym_expr).map_err(|s| Error::from(s, &a.op, &a.op))?
+        } else {
+            let val = self.expr(&a.value)?;
+            a.t.coerce(val).map_err(|msg| {
+                Error { special: None, msg,
+                    col_start: a.op.col_start, col_end: a.op.col_end, line: a.op.line
+                }
+            })?
+        };
         let t = if Type::Auto == a.t {
             val.get_type()
         } else {

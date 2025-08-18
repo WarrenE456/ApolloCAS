@@ -5,6 +5,7 @@ pub mod scanner;
 pub mod runtime;
 pub mod parser;
 pub mod mem;
+pub mod sym;
 
 use std::sync::{Arc, RwLock};
 // use std::sync::mpsc::channel;
@@ -20,7 +21,7 @@ use mem::gc::GC;
 /* TODO
 *
 * range object
-*
+* fix foor loop scoping
 *
 * fix window resize issue
 * fix segfault

@@ -49,7 +49,7 @@ use crate::parser::statement::*;
 use crate::parser::expr::*;
 use crate::error::{Error, Special};
 use crate::parser::expr::Expr;
-use crate::runtime::val::Type;
+use crate::runtime::val::{Type, SymT};
 
 pub struct Parser {
     toks: Vec<Tok>,
@@ -297,7 +297,7 @@ impl Parser {
         let _ = self.advance();
         Ok(Type::Proc(param_t, Box::new(return_t)))
     }
-    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t
+    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t | ...
     fn t(&self) -> Result<Type, Error> {
         let next = self.advance();
         use TokType::*;
@@ -312,6 +312,8 @@ impl Parser {
             StrT => Ok(Type::Str),
             ArrT => Ok(Type::Arr),
             CharT => Ok(Type::Char),
+            ZT => Ok(Type::Sym(SymT::Z)),
+            SymAnyT => Ok(Type::Sym(SymT::Any)),
             LParen => self.proc_t(),
             _ => {
                 let msg = String::from("Expected type here.");

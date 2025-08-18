@@ -1,4 +1,5 @@
 use crate::scanner::tok::Tok;
+use crate::sym::{SymExpr, Sum};
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -55,6 +56,21 @@ impl Expr {
             Index(i) => i.expr.to_string() + &i.index.to_string(),
         }
     }
+    pub fn to_sym(&self) -> Result<SymExpr, String> {
+        use crate::scanner::tok::TokType;
+
+        match self {
+            Expr::Literal(tok) => match tok.t {
+                TokType::Int => Ok(SymExpr::z_from_string(&tok.lexeme)),
+                TokType::Float => todo!(), // TODO Convert to Q
+                TokType::Identifier => todo!(), // TODO symbol
+                _ => todo!(), // TODO: Print error message
+            }
+            Expr::Binary(b) => b.to_sym(),
+            _ => Err(String::from("Expected a symbolic expression.")) // TODO think of better eror message
+ // TODO
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +89,21 @@ pub struct Binary {
 impl Binary {
     pub fn new(operators: Vec<Tok>, operands: Vec<Expr>) -> Self {
         Self { operators, operands }
+    }
+    pub fn sum_to_sym(&self) -> Result<SymExpr, String> {
+        let mut exprs = Vec::new();
+        for operand in self.operands.iter() {
+            exprs.push(operand.to_sym()?); 
+        }
+        Ok(SymExpr::Sum(Sum { exprs }))
+    }
+    pub fn to_sym(&self) -> Result<SymExpr, String> {
+        use crate::scanner::tok::TokType;
+        let opt = self.operators[0].t;
+        match opt {
+            TokType::Plus => self.sum_to_sym(),
+            _ => todo!(),
+        }
     }
 }
 

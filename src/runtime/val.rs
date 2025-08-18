@@ -7,6 +7,7 @@ use crate::error::{Error, Special};
 use crate::parser::expr::{Index, Call};
 use crate::parser::statement::{Block, Proc};
 use crate::scanner::tok::Tok;
+use crate::sym::*;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Num {
@@ -92,22 +93,23 @@ pub enum Val {
     Str(u64),
     Arr(u64),
     Char(u8),
+    Sym(SymExpr),
 }
 
 impl Val {
     pub fn to_string(&self, h: &Heap) -> String {
-        use Val::*;
         match self {
-            Num(n) => n.to_string(),
-            Function(_, e) => e.to_string(),
-            BuiltIn(b) => b.to_string(),
-            Unit => String::from("()"),
-            Bool(b) => String::from(if *b { "true" } else { "false" }),
+            Val::Num(n) => n.to_string(),
+            Val::Function(_, e) => e.to_string(),
+            Val::BuiltIn(b) => b.to_string(),
+            Val::Unit => String::from("()"),
+            Val::Bool(b) => String::from(if *b { "true" } else { "false" }),
             // TODO print types
-            Proc(_) => String::from("<procedure>"),
-            Str(addr) => h.to_string(*addr),
-            Arr(addr) => h.to_string(*addr),
-            Char(c) => (*c as char).to_string(),
+            Val::Proc(_) => String::from("<procedure>"),
+            Val::Str(addr) => h.to_string(*addr),
+            Val::Arr(addr) => h.to_string(*addr),
+            Val::Char(c) => (*c as char).to_string(),
+            Val::Sym(s) => s.to_string(),
         }
     }
     pub unsafe fn unwrap<T>(&self) -> T {
@@ -137,6 +139,8 @@ impl Val {
             Val::Str(_) => Type::Str,
             Val::Arr(_) => Type::Arr,
             Val::Char(_) => Type::Char,
+            Val::Sym(SymExpr::Z(_)) => Type::Sym(SymT::Z),
+            Val::Sym(SymExpr::Sum(_)) => Type::Sym(SymT::Any),
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -194,6 +198,24 @@ impl Val {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SymT {
+    Any,
+    Z,
+}
+
+impl SymT {
+    pub fn coerce(&self, sym: SymExpr) -> Result<Val, String> {
+        use SymT::*;
+        match self {
+            Any => Ok(Val::Sym(sym)),
+            Z => match sym {
+                SymExpr::Z(_) => Ok(Val::Sym(sym)),
+                SymExpr::Sum(_) => todo!(), // TODO error msg
+            },
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
@@ -209,6 +231,7 @@ pub enum Type {
     Char,
     Auto,
     Proc(Vec<Type>, Box<Type>),
+    Sym(SymT),
 }
 
 impl Type {
@@ -226,6 +249,8 @@ impl Type {
             Arr => String::from("Arr"),
             Char => String::from("Char"),
             Auto => String::from("Auto"),
+            Sym(SymT::Z) => String::from("Z"),
+            Sym(SymT::Any) => String::from("Sym"),
             Proc(param, ret) =>
                 format!("({} -> {})", param.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "), ret.to_string()),
         }
@@ -240,6 +265,15 @@ impl Type {
                 Val::Num(Num::Float(_)) => Ok(v),
                 Val::Num(Num::Int(n)) => Ok(Val::Num(Num::Float(n as f64))),
                 other => Err(Self::gen_type_error(&Type::Float, &other.get_type()))
+            },
+            Self::Int => match v {
+                Val::Num(Num::Float(f)) => Ok(Val::Num(Num::Int(f as i64))),
+                Val::Num(Num::Int(_)) => Ok(v),
+                other => Err(Self::gen_type_error(&Type::Int, &other.get_type())),
+            },
+            Self::Sym(SymT::Z) => match v{
+                Val::Num(Num::Int(n)) => Ok(Val::Sym(SymExpr::z_from_i64(n))),
+                other => Err(Self::gen_type_error(&Type::Sym(SymT::Z), &other.get_type()))
             }
             _ => {
                 let other = v.get_type();
