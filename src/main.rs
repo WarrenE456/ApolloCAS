@@ -20,6 +20,8 @@ use mem::gc::GC;
 
 /* TODO
 *
+* Symbol set expressions
+*
 * range object
 * fix foor loop scoping
 *

@@ -139,7 +139,7 @@ impl Val {
             Val::Str(_) => Type::Str,
             Val::Arr(_) => Type::Arr,
             Val::Char(_) => Type::Char,
-            Val::Sym(SymExpr::Sum(_)) => Type::Sym(SymT::Any),
+            Val::Sym(SymExpr::Sum(_) | SymExpr::Product(_) | SymExpr::Pow(_)) => Type::Sym(SymT::Any),
             Val::Sym(SymExpr::Z(_)) => Type::Sym(SymT::Z),
             Val::Sym(SymExpr::Symbol(_)) => Type::Sym(SymT::Symbol),
         }

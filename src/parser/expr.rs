@@ -1,5 +1,5 @@
 use crate::scanner::tok::{Tok, TokType};
-use crate::sym::{SymExpr, Sum};
+use crate::sym::*;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -90,6 +90,7 @@ impl Expr {
                 _ => todo!(), // TODO: Print error message
             }
             Expr::Binary(b) => b.to_sym(),
+            Expr::Group(g) => g.to_sym(),
             _ => Err(format!("Cannot convert {} expression to a symbolic expression.", self.kind_name()))
  // TODO
         }
@@ -113,19 +114,30 @@ impl Binary {
     pub fn new(operators: Vec<Tok>, operands: Vec<Expr>) -> Self {
         Self { operators, operands }
     }
-    pub fn sum_to_sym(&self) -> Result<SymExpr, String> {
-        let mut exprs = Vec::new();
+    fn sum_to_sym(&self) -> Result<SymExpr, String> {
+        assert!(self.operators[0].t == TokType::Plus);
+        let mut terms = Vec::new();
         for operand in self.operands.iter() {
-            exprs.push(operand.to_sym()?); 
+            terms.push(operand.to_sym()?); 
         }
-        Ok(SymExpr::Sum(Sum { exprs }))
+        Ok(SymExpr::Sum(Sum { terms }))
+    }
+    fn prod_to_sym(&self) -> Result<SymExpr, String> {
+        let mut factors = Vec::new();
+        for operand in self.operands.iter() {
+            factors.push(operand.to_sym()?); 
+        }
+        Ok(SymExpr::Product(Product { factors }))
     }
     pub fn to_sym(&self) -> Result<SymExpr, String> {
         use crate::scanner::tok::TokType;
         let opt = self.operators[0].t;
         match opt {
             TokType::Plus => self.sum_to_sym(),
-            _ => todo!(),
+            TokType::Star => self.prod_to_sym(),
+            TokType::Minus => todo!(),
+            TokType::Slash => todo!(),
+            _ => unreachable!(),
         }
     }
 }
