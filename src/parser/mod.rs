@@ -285,20 +285,20 @@ impl Parser {
     }
     // proc_t -> '(' type ( ',' type )* '->' type ')'
     fn proc_t(&self) -> Result<Type, Error> {
-        let mut param_t = vec![self.t()?];
+        let mut param_t = vec![self.parse_type()?];
         while self.is_match(TokType::Comma) {
             let _ = self.advance();
-            param_t.push(self.t()?);
+            param_t.push(self.parse_type()?);
         }
         self.expect(TokType::Arrow, String::from("Expected an arrow after the parameter types and before the return type."))?;
         let _ = self.advance();
-        let return_t = self.t()?;
+        let return_t = self.parse_type()?;
         self.expect(TokType::RParen, String::from("Expected a closing parenthesis."))?;
         let _ = self.advance();
         Ok(Type::Proc(param_t, Box::new(return_t)))
     }
-    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t | ...
-    fn t(&self) -> Result<Type, Error> {
+    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t | *T...
+    fn parse_type(&self) -> Result<Type, Error> {
         let next = self.advance();
         use TokType::*;
         match next.t {
@@ -314,6 +314,7 @@ impl Parser {
             CharT => Ok(Type::Char),
             ZT => Ok(Type::Sym(SymT::Z)),
             SymAnyT => Ok(Type::Sym(SymT::Any)),
+            SymbolT => Ok(Type::Sym(SymT::Symbol)),
             LParen => self.proc_t(),
             _ => {
                 let msg = String::from("Expected type here.");
@@ -328,7 +329,7 @@ impl Parser {
 
         let t = if self.is_match(TokType::Colon) {
             let _ = self.advance();
-            Some(self.t()?)
+            Some(self.parse_type()?)
         } else {
             None
         };
@@ -494,7 +495,7 @@ impl Parser {
 
         let return_t = if self.is_match(TokType::Arrow) {
             let _ = self.advance();
-            self.t()?
+            self.parse_type()?
         } else {
             Type::Any
         };

@@ -324,7 +324,9 @@ impl<'a> Interpreter {
             let sym_expr = a.value
                 .to_sym()
                 .map_err(|s| Error::from(s, &a.op, &a.op))?.simplify();
-            t.coerce(sym_expr).map_err(|s| Error::from(s, &a.op, &a.op))?
+            t.coerce(sym_expr)
+                .map_err(|s| Error::from(s, &a.op, &a.op))
+                .map(|symexpr| Val::Sym(symexpr))?
         } else {
             let val = self.expr(&a.value)?;
             a.t.coerce(val).map_err(|msg| {

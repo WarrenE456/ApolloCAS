@@ -139,8 +139,9 @@ impl Val {
             Val::Str(_) => Type::Str,
             Val::Arr(_) => Type::Arr,
             Val::Char(_) => Type::Char,
-            Val::Sym(SymExpr::Z(_)) => Type::Sym(SymT::Z),
             Val::Sym(SymExpr::Sum(_)) => Type::Sym(SymT::Any),
+            Val::Sym(SymExpr::Z(_)) => Type::Sym(SymT::Z),
+            Val::Sym(SymExpr::Symbol(_)) => Type::Sym(SymT::Symbol),
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -198,21 +199,43 @@ impl Val {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum SymT {
     Any,
     Z,
+    Symbol,
 }
 
 impl SymT {
-    pub fn coerce(&self, sym: SymExpr) -> Result<Val, String> {
+    fn type_error_msg(recieved: &SymExpr, expected: &SymT) -> String {
+        format!("Cannot convert {} to {}.", recieved.kind_name(), expected.to_string())
+    }
+    pub fn coerce(&self, sym: SymExpr) -> Result<SymExpr, String> {
         use SymT::*;
+
+        macro_rules! type_err {
+            () => {
+                Err(Self::type_error_msg(&sym, self))
+            };
+        }
+
         match self {
-            Any => Ok(Val::Sym(sym)),
-            Z => match sym {
-                SymExpr::Z(_) => Ok(Val::Sym(sym)),
-                SymExpr::Sum(_) => todo!(), // TODO error msg
+            Any => Ok(sym),
+            Symbol => match sym {
+                SymExpr::Symbol(_) => Ok(sym),
+                _ => type_err!(),
             },
+            Z => match sym {
+                SymExpr::Z(_) => Ok(sym),
+                _ => type_err!(),
+            },
+        }
+    }
+    fn to_string(&self) -> String {
+        match self {
+            SymT::Z => String::from("Z"),
+            SymT::Any => String::from("Sym"),
+            SymT::Symbol => String::from("Symbol"),
         }
     }
 }
@@ -251,6 +274,7 @@ impl Type {
             Auto => String::from("Auto"),
             Sym(SymT::Z) => String::from("Z"),
             Sym(SymT::Any) => String::from("Sym"),
+            Sym(SymT::Symbol) => String::from("Symbol"),
             Proc(param, ret) =>
                 format!("({} -> {})", param.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "), ret.to_string()),
         }

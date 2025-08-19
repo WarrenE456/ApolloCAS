@@ -7,6 +7,7 @@ use std::str::FromStr;
 pub enum SymExpr {
     Z(BigInt),
     Sum(Sum),
+    Symbol(String),
 }
 
 impl SymExpr {
@@ -24,13 +25,22 @@ impl SymExpr {
     pub fn simplify(self) -> SymExpr {
         match self {
             SymExpr::Z(_) => self,
+            SymExpr::Symbol(_) => self,
             SymExpr::Sum(s) => s.simplify(),
         }
     }
     pub fn to_string(&self) -> String {
         match self {
+            SymExpr::Symbol(s) => s.clone(),
             SymExpr::Z(n) => n.to_string(),
             SymExpr::Sum(s) => s.to_string(),
+        }
+    }
+    pub fn kind_name(&self) -> String {
+        match self {
+            SymExpr::Symbol(s) => String::from("symbol"),
+            SymExpr::Z(n) => String::from("Z"),
+            SymExpr::Sum(s) => String::from("sum of expressions"),
         }
     }
 }

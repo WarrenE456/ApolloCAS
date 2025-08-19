@@ -51,6 +51,8 @@ impl<'a> Scanner<'a> {
             (String::from("Str"), TokType::StrT),
             (String::from("Arr"), TokType::ArrT),
             (String::from("Char"), TokType::CharT),
+            (String::from("Sym"), TokType::SymAnyT),
+            (String::from("Symbol"), TokType::SymbolT),
             (String::from("Z"), TokType::ZT),
         ]);
         Scanner {
