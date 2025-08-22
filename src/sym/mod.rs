@@ -3,8 +3,9 @@ pub extern crate num_bigint;
 use num_bigint::{BigInt, Sign};
 
 use std::str::FromStr;
+use std::collections::HashMap;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum SymExpr {
     Z(BigInt),
     Sum(Sum),
@@ -61,29 +62,74 @@ impl SymExpr {
         }
         Sum { terms }
     }
+    pub fn seperate_coef(self) -> (BigInt, SymExpr) {
+        match self {
+            SymExpr::Product(p) => match p.seperate_coef() {
+                (n, p) => (n, SymExpr::Product(p)),
+            }
+            other => (BigInt::ZERO + 1, other),
+        }
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Sum {
     pub terms: Vec<SymExpr>,
 }
 
 impl Sum {
-    pub fn simplify(self) -> SymExpr {
-        let mut n = BigInt::ZERO;
-        let mut exprs = Vec::new();
-        for expr in self.terms {
-            match expr.simplify() {
-                SymExpr::Z(i) => n += i,
-                other => exprs.push(other),
+    fn simplify_each(self) -> Sum {
+        let terms = self.terms
+            .into_iter().map(|expr| expr.simplify())
+            .collect::<Vec<SymExpr>>(); 
+        Sum { terms }
+    }
+    fn flatten(self) -> Sum {
+        let mut terms = Vec::new();
+        for term in self.terms {
+            match term {
+                SymExpr::Sum(s) => for term in s.terms {
+                    terms.push(term)
+                }
+                _ => terms.push(term)
             }
         }
-        return if exprs.len() == 0 {
-            SymExpr::Z(n)
+        Sum { terms }
+    }
+    fn cannonicalize_terms(self) -> Sum {
+        self // TODO
+    }
+    fn combine_like_terms(self) -> SymExpr {
+        let mut mp = HashMap::new();
+        for term in self.terms {
+            let (coef, term) = term.seperate_coef();
+            *mp.entry(term).or_insert(BigInt::ZERO) += coef;
+        }
+        let mut terms = Vec::new();
+        for (term, coef) in mp {
+            if coef == BigInt::ZERO {
+                continue;
+            }
+            let term = if coef == BigInt::from(1) {
+                term
+            } else {
+                let factors = vec![SymExpr::Z(coef), term];
+                SymExpr::Product(Product{ factors }.flatten())
+            };
+            terms.push(term);
+        }
+        if terms.len() > 1 {
+            SymExpr::Sum(Sum{ terms })
         } else {
-            exprs.push(SymExpr::Z(n));
-            SymExpr::Sum(Sum{ terms: exprs })
-        };
+            terms[0].clone()
+        }
+    }
+    pub fn simplify(self) -> SymExpr {
+        self
+            .simplify_each()
+            .flatten()
+            .cannonicalize_terms()
+            .combine_like_terms()
     }
     pub fn to_string(&self) -> String {
         self.terms
@@ -101,7 +147,7 @@ impl Sum {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Product {
     pub factors: Vec<SymExpr>,
 }
@@ -185,9 +231,20 @@ impl Product {
             _ => unreachable!(),
         }
     }
+    pub fn seperate_coef(self) -> (BigInt, Product) {
+        let mut coef = BigInt::ZERO + 1;
+        let mut factors = Vec::new();
+        for factor in self.factors {
+            match factor {
+                SymExpr::Z(n) => coef *= n,
+                other => factors.push(other),
+            }
+        }
+        (coef, Product{ factors })
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Pow {
     pub base: Box<SymExpr>,
     pub exp: Box<SymExpr>,
