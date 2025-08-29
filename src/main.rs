@@ -21,6 +21,7 @@ use mem::gc::GC;
 /* TODO
 *
 * Symbol set expressions
+* blankline error
 *
 * range object
 * fix foor loop scoping
@@ -48,18 +49,6 @@ use mem::gc::GC;
 fn main() {
     // let (graph_tx, graph_rx) = channel::<GraphSignal>();
     
-    // { TODO remove
-    //     use sym::SymExpr::Symbol;
-    //     use std::collections::HashMap;
-    //     use num_bigint::BigInt;
-    //     let a = Symbol(String::from("a"));
-    //     let b = Symbol(String::from("a"));
-    //     let mut mp = HashMap::new();
-    //     *mp.entry(a).or_insert(BigInt::ZERO) += 1;
-    //     *mp.entry(b).or_insert(BigInt::ZERO) += 1;
-    //     println!("{:?}", mp);
-    // }
-
     let heap = Arc::new(Heap::new());
     let global = Arc::new(RwLock::new(Interpreter::new(heap)));
     let running = Arc::new(AtomicBool::new(true));

@@ -64,9 +64,8 @@ impl SymExpr {
     }
     pub fn seperate_coef(self) -> (BigInt, SymExpr) {
         match self {
-            SymExpr::Product(p) => match p.seperate_coef() {
-                (n, p) => (n, SymExpr::Product(p)),
-            }
+            SymExpr::Product(p) => p.seperate_coef(),
+            SymExpr::Z(z) => (z, SymExpr::Z(BigInt::ZERO + 1)),
             other => (BigInt::ZERO + 1, other),
         }
     }
@@ -112,7 +111,14 @@ impl Sum {
             }
             let term = if coef == BigInt::from(1) {
                 term
-            } else {
+            } else if let SymExpr::Z(z) = &term {
+                if *z == BigInt::from(1) {
+                    SymExpr::Z(coef)
+                } else {
+                    let factors = vec![SymExpr::Z(coef), term];
+                    SymExpr::Product(Product{ factors }.flatten())
+                }
+            }else {
                 let factors = vec![SymExpr::Z(coef), term];
                 SymExpr::Product(Product{ factors }.flatten())
             };
@@ -231,7 +237,7 @@ impl Product {
             _ => unreachable!(),
         }
     }
-    pub fn seperate_coef(self) -> (BigInt, Product) {
+    pub fn seperate_coef(self) -> (BigInt, SymExpr) {
         let mut coef = BigInt::ZERO + 1;
         let mut factors = Vec::new();
         for factor in self.factors {
@@ -240,7 +246,11 @@ impl Product {
                 other => factors.push(other),
             }
         }
-        (coef, Product{ factors })
+        if factors.len() == 1 {
+            (coef, factors[0].clone())
+        } else {
+            (coef, SymExpr::Product(Product{ factors }))
+        }
     }
 }
 
