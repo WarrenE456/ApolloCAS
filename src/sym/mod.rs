@@ -32,17 +32,18 @@ impl SymExpr {
             SymExpr::Z(_) => self,
             SymExpr::Symbol(_) => self,
             SymExpr::Sum(s) => s.simplify(),
-            SymExpr::Product(t) => t.simplify(),
+            SymExpr::Product(p) => p.simplify(),
             SymExpr::Pow(_) => todo!(),
         }
     }
+    // TODO parenthesis when child op has lower precedence than parent op
     pub fn to_string(&self) -> String {
         match self {
             SymExpr::Symbol(s) => s.clone(),
             SymExpr::Z(n) => n.to_string(),
             SymExpr::Sum(s) => s.to_string(),
             SymExpr::Product(t) => t.to_string(),
-            SymExpr::Pow(_) => todo!(),
+            SymExpr::Pow(p) => p.to_string(),
         }
     }
     pub fn kind_name(&self) -> String {
@@ -70,12 +71,6 @@ impl SymExpr {
             other => (BigInt::ZERO + 1, other),
         }
     }
-    fn remove_coef(&self) -> SymExpr {
-        // if let SymExpr::Product(p) = self {
-        //     let (_, non_coef) = p.seperate_coef();
-        // }
-        todo!()
-    }
     /*
     Takes two symbolic expressions, both of which must be simplified
     Returns Ordering::Less of a comes before b,
@@ -101,9 +96,6 @@ impl SymExpr {
             otherwise a comes before b if len(a.products) > len(b.products)
             otherwise we combare the base of each factor
     */
-    fn order_product_power(pro: &Product, pow: &Pow) -> Ordering {
-        todo!()
-    }
     pub fn order (&self, other: &SymExpr) -> Ordering {
         match self {
             SymExpr::Z(z) => match other {
@@ -122,7 +114,7 @@ impl SymExpr {
             }
             SymExpr::Product(p) => match other {
                 SymExpr::Z(_) | SymExpr::Symbol(_) | SymExpr::Sum(_) => Ordering::Greater,
-                SymExpr::Product(pp) => todo!(),
+                SymExpr::Product(pp) => panic!("{:?} {:?}", p, pp), // TODO
                 SymExpr::Pow(pp) => Self::order_product_power(p, pp),
             }
             SymExpr::Pow(p) => match other {
@@ -131,6 +123,9 @@ impl SymExpr {
                 SymExpr::Pow(pp) => p.order(pp),
             }
         }
+    }
+    fn order_product_power(pro: &Product, pow: &Pow) -> Ordering {
+        panic!("{:?}, {:?}", pro, pow); // TODO
     }
 }
 
@@ -200,10 +195,10 @@ impl Sum {
             };
             terms.push(term);
         }
-        if terms.len() > 1 {
-            SymExpr::Sum(Sum{ terms })
+        if terms.len() == 1 {
+            terms.pop().unwrap()
         } else {
-            terms[0].clone()
+            SymExpr::Sum(Sum{ terms })
         }
     }
     pub fn simplify(self) -> SymExpr {
@@ -310,26 +305,54 @@ impl Product {
             }
         }
     }
-    fn collect_factors(self) -> Product {
+    fn collect_factors(self) -> SymExpr {
         let mut mp = HashMap::new();
         let one = SymExpr::Z(BigInt::ZERO + 1);
         let mut numeric = BigInt::ZERO + 1;
         for factor in self.factors {
             if let SymExpr::Pow(p) = factor {
-                mp.entry(*p.base)
-                    .and_modify(|exp| Self::add_a_to_entry(*p.exp, exp))
+                let exp = mp.entry(*p.base)
                     .or_insert(SymExpr::Z(BigInt::ZERO));
+                Self::add_a_to_entry(*p.exp, exp);
             }
             else if let SymExpr::Z(z) = factor {
-                numeric += z;
+                if z == BigInt::ZERO {
+                    return SymExpr::Z(BigInt::ZERO);
+                }
+                numeric *= z;
             }
             else {
-                mp.entry(factor)
-                    .and_modify(|exp| Self::add_a_to_entry(one.clone(), exp))
+                let exp = mp.entry(factor)
                     .or_insert(SymExpr::Z(BigInt::ZERO));
+                Self::add_a_to_entry(one.clone(), exp);
             }
         }
-        todo!()
+        let mut factors = Vec::new();
+        for (base, exp) in mp.into_iter() {
+            let exp = exp.simplify();
+            match &exp {
+                SymExpr::Z(z) => 
+                if *z == BigInt::ZERO {
+                    numeric += 1;
+                }
+                else if *z == BigInt::ZERO + 1 {
+                    factors.push(base);
+                } else {
+                    factors.push(SymExpr::Pow(Pow { base: Box::new(base), exp: Box::new(exp) } ));
+                }
+                _ => factors.push(SymExpr::Pow(Pow { base: Box::new(base), exp: Box::new(exp) } )),
+            }
+        }
+
+        if numeric != BigInt::ZERO + 1 {
+            factors.push(SymExpr::Z(numeric));
+        }
+
+        if factors.len() == 1 {
+            factors.pop().unwrap()
+        } else {
+            SymExpr::Product(Product { factors })
+        }
     }
     fn order_factors(self) -> Product {
         let mut factors = self.factors;
@@ -348,23 +371,11 @@ impl Product {
             .flatten()
             .distribute()
         {
-            SymExpr::Product(t) => {
-                SymExpr::Product(
-                    t.collect_factors()
-                        .order_factors()
-                )
+            SymExpr::Product(t) => match t.collect_factors() {
+                SymExpr::Product(p) => SymExpr::Product(p.order_factors()),
+                other => other
             }
-            SymExpr::Sum(s) => {
-                let terms = s.terms
-                    .into_iter()
-                    .map(|term| match  term {
-                        SymExpr::Product(t) => SymExpr::Product(t.collect_factors().order_factors()),
-                        SymExpr::Sum(s) => SymExpr::Sum(s), // TODO remove
-                        other => panic!("!{}", other.kind_name()), // TODO unreachable
-                    })
-                    .collect::<Vec<SymExpr>>();
-                SymExpr::Sum(Sum { terms })
-            }
+            SymExpr::Sum(s) => s.simplify(),
             _ => unreachable!(),
         }
     }
@@ -392,6 +403,9 @@ pub struct Pow {
 }
 
 impl Pow {
+    pub fn to_string(&self) -> String {
+        format!("{}^{}", self.base.to_string(), self.exp.to_string())
+    }
     pub fn order(&self, other: &Pow) -> Ordering {
         match self.exp.order(&other.exp) {
             Ordering::Equal => self.base.order(&other.base),

@@ -313,7 +313,7 @@ impl<'a> Interpreter {
             Arr(a) => self.arr(a),
             Index(i) => self.index(i),
             Sym(dollar, e) => e.to_sym()
-                .map(|se| Val::Sym(se))
+                .map(|se| Val::Sym(se.simplify()))
                 .map_err(|msg| Error::from(msg, dollar, dollar)),
         };
     }
