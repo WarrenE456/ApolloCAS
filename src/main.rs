@@ -22,6 +22,8 @@ use mem::gc::GC;
 *
 * Symbol set expressions
 * blankline error
+* Change interpreter wrapper classes (arc/mutex). I think this might need to be chagned because gc doesn't need
+* access to interpreter and grapher got kicked from the squad
 *
 * range object
 * fix foor loop scoping

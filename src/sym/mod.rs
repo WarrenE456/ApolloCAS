@@ -4,6 +4,7 @@ use num_bigint::{BigInt, Sign};
 
 use std::str::FromStr;
 use std::collections::HashMap;
+use std::cmp::Ordering;
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum SymExpr {
@@ -69,6 +70,79 @@ impl SymExpr {
             other => (BigInt::ZERO + 1, other),
         }
     }
+    fn remove_coef(&self) -> SymExpr {
+        // if let SymExpr::Product(p) = self {
+        //     let (_, non_coef) = p.seperate_coef();
+        // }
+        todo!()
+    }
+    /*
+    Takes two symbolic expressions, both of which must be simplified
+    Returns Ordering::Less of a comes before b,
+            Order::Equal if a and b are the same order
+            and Order::Greater if a comes after b,
+    Rules:
+        Expression kinds ordered from first to last,
+            Z < Symbol < Sum < Product = Pow
+        If expressions are of the same kind...
+        Z:
+            z_i comes before z_k if z_i < z_k
+            this only really matters for ordering pow
+        Sym:
+            symbol a comes before symbol b if len(a) < len(b)
+            if len(a) = len(b), then ordering lexographically
+        Sum:
+            if len(sum_i) < len(sum_k), sum1 comes first
+            otherwise, based off of order of last term.
+            If these terms are equal we look at the next term,
+            then then the next and so on
+        Product & Pow:
+            a comes before b if sum_deg(a) comes after sum_deg(b)
+            otherwise a comes before b if len(a.products) > len(b.products)
+            otherwise we combare the base of each factor
+    */
+    fn order_product_power(pro: &Product, pow: &Pow) -> Ordering {
+        todo!()
+    }
+    pub fn order (&self, other: &SymExpr) -> Ordering {
+        match self {
+            SymExpr::Z(z) => match other {
+                SymExpr::Z(zz) => z.cmp(zz),
+                _ => Ordering::Less,
+            }
+            SymExpr::Symbol(s) => match other {
+                SymExpr::Z(_) => Ordering::Greater,
+                SymExpr::Symbol(ss) => string_order(&s, &ss),
+                _ => Ordering::Less,
+            },
+            SymExpr::Sum(s) => match other {
+                SymExpr::Z(_) | SymExpr::Symbol(_) => Ordering::Greater,
+                SymExpr::Sum(ss) => s.order(ss),
+                _ => Ordering::Less,
+            }
+            SymExpr::Product(p) => match other {
+                SymExpr::Z(_) | SymExpr::Symbol(_) | SymExpr::Sum(_) => Ordering::Greater,
+                SymExpr::Product(pp) => todo!(),
+                SymExpr::Pow(pp) => Self::order_product_power(p, pp),
+            }
+            SymExpr::Pow(p) => match other {
+                SymExpr::Z(_) | SymExpr::Symbol(_) | SymExpr::Sum(_) => Ordering::Greater,
+                SymExpr::Product(pp) => Self::order_product_power(pp, p),
+                SymExpr::Pow(pp) => p.order(pp),
+            }
+        }
+    }
+}
+
+fn string_order(s: &String, ss: &String) -> Ordering {
+    if s.len() == ss.len() {
+        s.cmp(&ss)
+    }
+    else if s.len() < ss.len() {
+        Ordering::Less
+    } else {
+        Ordering::Greater
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -95,8 +169,10 @@ impl Sum {
         }
         Sum { terms }
     }
-    fn cannonicalize_terms(self) -> Sum {
-        self // TODO
+    fn order_terms(self) -> Sum {
+        let mut terms = self.terms;
+        terms.sort_by(|a, b| b.order(a));
+        Sum { terms }
     }
     fn combine_like_terms(self) -> SymExpr {
         let mut mp = HashMap::new();
@@ -134,7 +210,7 @@ impl Sum {
         self
             .simplify_each()
             .flatten()
-            .cannonicalize_terms()
+            .order_terms()
             .combine_like_terms()
     }
     pub fn to_string(&self) -> String {
@@ -150,6 +226,24 @@ impl Sum {
             terms.push(SymExpr::Sum(term));
         }
         Sum{ terms }
+    }
+    pub fn order(&self, other: &Sum) -> Ordering {
+        if self.terms.len() < other.terms.len() {
+            return Ordering::Less;
+        }
+        else if other.terms.len() < self.terms.len() {
+            return Ordering::Greater;
+        }
+
+        for (t1, t2) in Iterator::zip(self.terms.iter().rev(), other.terms.iter().rev()) {
+            if t1 == t2 {
+                continue;
+            } else {
+                return t1.order(t2)
+            }
+        }
+
+        Ordering::Equal
     }
 }
 
@@ -210,6 +304,11 @@ impl Product {
     fn collect_factors(self) -> Product {
         self // TODO
     }
+    fn order_factors(self) -> Product {
+        let mut factors = self.factors;
+        factors.sort_by(|a, b| a.order(b));
+        Product { factors }
+    }
     fn simplify_each(self) -> Product {
         let factors = self.factors.into_iter()
             .map(|expr| expr.simplify())
@@ -222,12 +321,17 @@ impl Product {
             .flatten()
             .distribute()
         {
-            SymExpr::Product(t) => SymExpr::Product(t.collect_factors()),
+            SymExpr::Product(t) => {
+                SymExpr::Product(
+                    t.collect_factors()
+                        .order_factors()
+                )
+            }
             SymExpr::Sum(s) => {
                 let terms = s.terms
                     .into_iter()
                     .map(|term| match  term {
-                        SymExpr::Product(t) => SymExpr::Product(t.collect_factors()),
+                        SymExpr::Product(t) => SymExpr::Product(t.collect_factors().order_factors()),
                         SymExpr::Sum(s) => SymExpr::Sum(s), // TODO remove
                         other => panic!("!{}", other.kind_name()), // TODO unreachable
                     })
@@ -261,6 +365,12 @@ pub struct Pow {
 }
 
 impl Pow {
+    pub fn order(&self, other: &Pow) -> Ordering {
+        match self.exp.order(&other.exp) {
+            Ordering::Equal => self.base.order(&other.base),
+            order => order,
+        }
+    }
 }
 
 fn decompose_u64(n: u64) -> Vec<u32> {
