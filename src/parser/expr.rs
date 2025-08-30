@@ -15,6 +15,7 @@ pub enum Expr {
     Or(Or),
     And(And),
     Index(Index),
+    Sym(Tok, Box<Expr>)
 }
 
 impl Expr {
@@ -54,6 +55,7 @@ impl Expr {
             Or(o) => format!("{} or {}", o.right.to_string(), o.left.to_string()),
             Arr(a) => format!("[{}]", a.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
             Index(i) => i.expr.to_string() + &i.index.to_string(),
+            Sym(_, e) => e.to_string(),
         }
     }
     pub fn kind_name(&self) -> String {
@@ -77,6 +79,7 @@ impl Expr {
                 Minus => String::from("subtraction"),
                 _ => format!("binary ('{}')", b.operators[0].lexeme),
             },
+            Expr::Sym(_, e) => e.kind_name(),
         }
     }
     pub fn to_sym(&self) -> Result<SymExpr, String> {
@@ -91,6 +94,7 @@ impl Expr {
             }
             Expr::Binary(b) => b.to_sym(),
             Expr::Group(g) => g.to_sym(),
+            Expr::Sym(_, s) => s.to_sym(),
             _ => Err(format!("Cannot convert {} expression to a symbolic expression.", self.kind_name()))
  // TODO
         }

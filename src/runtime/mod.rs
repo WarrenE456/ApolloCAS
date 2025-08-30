@@ -312,6 +312,9 @@ impl<'a> Interpreter {
             And(a) => self.and(a),
             Arr(a) => self.arr(a),
             Index(i) => self.index(i),
+            Sym(dollar, e) => e.to_sym()
+                .map(|se| Val::Sym(se))
+                .map_err(|msg| Error::from(msg, dollar, dollar)),
         };
     }
     pub fn eval_expr_at(&self, e: &Expr, var_name: &str, var: f64) -> Result<Val, Error> {

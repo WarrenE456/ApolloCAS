@@ -17,9 +17,9 @@
 * typed -> IDENTIFIER (':' type)?
 * proc_t -> '(' type ( ',' type )* '->' type ')'
 *
-* expr -> term
-* and -> or ("and" or)*
+* expr -> '$' SYMEXPR | or
 * or -> comp ("or" comp)*
+* and -> or ("and" or)*
 * comp -> concat ((">" | "<" | ">=" | "<=" | "=" | "!=") concat)*
 * concat -> term ('++' term)*
 * term -> factor (('+' | '-') factor)*
@@ -279,9 +279,14 @@ impl Parser {
         }
         Ok(expr)
     }
-    // expr -> and
+    // expr -> $ SYM_EXPR | ...
     fn expr(&self) -> Result<Expr, Error> {
-        self.or()
+        if self.is_match(TokType::Dollar) {
+            let dollar = self.advance().clone();
+            self.expr().map(|e| Expr::Sym(dollar, Box::new(e)))
+        } else {
+            self.or()
+        }
     }
     // proc_t -> '(' type ( ',' type )* '->' type ')'
     fn proc_t(&self) -> Result<Type, Error> {

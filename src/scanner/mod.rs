@@ -122,6 +122,7 @@ impl<'a> Scanner<'a> {
             b'[' => Some(Ok(self.make_tok(LBrac, 0))),
             b']' => Some(Ok(self.make_tok(RBrac, 0))),
             b':' => Some(Ok(self.make_tok(Colon, 0))),
+            b'$' => Some(Ok(self.make_tok(Dollar, 0))),
             b'+' => {
                 if self.is_match(b'+') {
                     Some(Ok(self.make_tok(PlusPlus, 0)))

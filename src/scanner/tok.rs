@@ -1,8 +1,8 @@
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokType {
     // Single characters
-    Star, Slash, LParen, RParen, Carrot, Equal,
-    Comma, LCurly, RCurly, LBrac, RBrac, Colon,
+    Star, Slash, LParen, RParen, Carrot, Equal, Comma,
+    LCurly, RCurly, LBrac, RBrac, Colon, Dollar,
     // 1-2 Characters
     Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual, Arrow, Minus,
     Plus, PlusPlus,

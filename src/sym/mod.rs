@@ -301,8 +301,35 @@ impl Product {
         }
         Product { factors: flattened }
     }
+    fn add_a_to_entry(a: SymExpr, entry: &mut SymExpr) {
+        match (entry, a) {
+            (SymExpr::Z(n), SymExpr::Z(nn)) => *n = n.clone() + nn,
+            (a, b) => {
+                let terms = vec![a.clone(), b];
+                *a = SymExpr::Sum(Sum { terms }.flatten());
+            }
+        }
+    }
     fn collect_factors(self) -> Product {
-        self // TODO
+        let mut mp = HashMap::new();
+        let one = SymExpr::Z(BigInt::ZERO + 1);
+        let mut numeric = BigInt::ZERO + 1;
+        for factor in self.factors {
+            if let SymExpr::Pow(p) = factor {
+                mp.entry(*p.base)
+                    .and_modify(|exp| Self::add_a_to_entry(*p.exp, exp))
+                    .or_insert(SymExpr::Z(BigInt::ZERO));
+            }
+            else if let SymExpr::Z(z) = factor {
+                numeric += z;
+            }
+            else {
+                mp.entry(factor)
+                    .and_modify(|exp| Self::add_a_to_entry(one.clone(), exp))
+                    .or_insert(SymExpr::Z(BigInt::ZERO));
+            }
+        }
+        todo!()
     }
     fn order_factors(self) -> Product {
         let mut factors = self.factors;
