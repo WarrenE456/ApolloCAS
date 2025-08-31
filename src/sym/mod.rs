@@ -152,7 +152,7 @@ impl SymExpr {
 
         match (a, b) {
             (SymExpr::Sum(a), SymExpr::Sum(b)) => a.order_eq_len_sum(b),
-            _ => unreachable!()
+            _ => unreachable!() // TODO wait this isn't actually unreachable? $2 * b + a got it
         }
     }
     pub fn sum_deg(&self) -> SymExpr {

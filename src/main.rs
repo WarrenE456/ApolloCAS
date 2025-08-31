@@ -26,7 +26,10 @@ use mem::gc::GC;
 * access to interpreter and grapher got kicked from the squad
 *
 * range object
-* fix foor loop scoping
+* proc casting
+* explicit casting
+* copy, type fn
+* polymorphic types
 *
 * fix window resize issue
 * fix segfault

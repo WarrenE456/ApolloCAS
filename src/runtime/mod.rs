@@ -436,10 +436,10 @@ impl<'a> Interpreter {
         };
         self.heap.add_hidden_ref(addr);
         let mut iter = HeapIter::new(addr);
-        let inner_scope = Interpreter::from(self);
         while let Some(v) = iter.next(&self.heap) {
-            inner_scope.env.put(f.identifier.lexeme.clone(), v);
-            inner_scope.block(&f.body)?;
+            let for_scope = Interpreter::from(self);
+            for_scope.env.put(f.identifier.lexeme.clone(), v);
+            for_scope.block(&f.body)?;
         }
         self.heap.rm_hidden_ref(addr);
         Ok(())
