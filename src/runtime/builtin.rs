@@ -1,5 +1,5 @@
 use crate::runtime::*;
-use crate::runtime::val::Num;
+use crate::runtime::val::{Num, Range};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // TODO inverse trig and other other asortment of other asortments of other assortermentnetms... of functions
@@ -21,39 +21,7 @@ enum BuiltInT {
     Pop,
     Range,
     Len,
-    // Create,
-    // Graph,
-    // Param,
 }
-
-// struct Template {
-//     name: String,
-//     types: Vec<Type>,
-// }
-//
-// impl Template {
-//     fn call(&self, c: Call, i: &Interpreter) -> Result<Val, Error> {
-//         if self.types.len() != c.args.len() {
-//             let msg = format!("{} expects {} arguments but found {}.", self.name, self.types.len(), c.args.len());
-//             return Err(Error { special: None,
-//                 msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
-//             })
-//         }
-//
-//         let mut vals = Vec::new();
-//         for (k, (arg, t)) in c.args.iter().zip(self.types.iter()).enumerate() {
-//             let val = t.coerce(i.expr(&arg)?).map_err(|msg| {
-//                 let msg = format!("{} (at argument {})", msg, k);
-//                 Error { special: None,
-//                     msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
-//                 }
-//             })?;
-//             vals.push(val);
-//         }
-//
-//
-//     }
-// }
 
 impl BuiltInT {
     pub fn to_string(&self) -> String {
@@ -106,9 +74,6 @@ impl BuiltIn {
             "range" => Range,
             "len" => Len,
             _ => return None,
-            // "param" => Param,
-            // "create" => Create,
-            // "graph" => Graph,
         };
         Some(BuiltIn { t })
     }
@@ -210,78 +175,6 @@ impl BuiltIn {
             })
         }
     }
-    // fn create(c: &Call, i: &Interpreter) -> Result<Val, Error> {
-    //     if c.args.len() == 1 {
-    //         match i.expr(&c.args[0])? {
-    //             Val::Str(addr) => {
-    //                 let name = i.heap.to_string(addr);
-    //                 i.graph_tx.send(GraphSignal::Create(name)).unwrap();
-    //                 Ok(Val::Unit)
-    //             }
-    //             other => {
-    //                 let msg = format!(
-    //                     "'create' expects a string (the name of the graph to be created) but found a {}.",
-    //                     other.type_as_string()
-    //                 );
-    //                 Err(Error {
-    //                     special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
-    //                 })
-    //             },
-    //         }
-    //     } else {
-    //         let msg = format!("'create' expects one argument (the graph name), but found {}.", c.args.len());
-    //         Err(Error {
-    //             special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
-    //         })
-    //     }
-    // }
-    // fn graph(c: &Call, i: &Interpreter) -> Result<Val, Error> {
-    //     if c.args.len() == 3 {
-    //         let graph_name = i.expr(&c.args[0])?;
-    //         let fn_name = i.expr(&c.args[1])?;
-    //         let e = c.args[2].clone();
-    //         match (graph_name, fn_name) {
-    //             (Val::Str(graph_addr), Val::Str(fn_addr)) => {
-    //                 let graph_name = i.heap.to_string(graph_addr);
-    //                 let fn_name = i.heap.to_string(fn_addr);
-    //                 i.graph_tx.send(GraphSignal::Graph{ graph_name, fn_name, e}).unwrap();
-    //                 Ok(Val::Unit)
-    //             }
-    //             (other1, other2) => {
-    //                 let msg = format!(
-    //                     "'graph' expects a 2 strings (the name of the graph and function) and an expression but found a {} and {}.",
-    //                     other1.type_as_string(), other2.type_as_string(),
-    //                 );
-    //                 Err(Error {
-    //                     special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
-    //                 })
-    //             },
-    //         }
-    //     } else {
-    //         let msg = format!("'graph' expects three argument (graph name, function name, expression), but found {}.", c.args.len());
-    //         Err(Error {
-    //             special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
-    //         })
-    //     }
-    // }
-    // fn param(c: &Call, i: &Interpreter) -> Result<Val, Error> {
-    //     use Type::*;
-    //     let args = Self::type_check(vec![Str, Float, Float, Float, Float, Bool], c, i)?;
-    //     let graph_name_id = unsafe { args[0].unwrap::<u64>() };
-    //     let graph_name = match i.heap.get(graph_name_id) {
-    //         Some(HeapVal::Str(s)) => String::from_utf8(s).unwrap(),
-    //         _ => unreachable!(),
-    //     };
-    //     let minx = unsafe { args[1].unwrap::<f64>() };
-    //     let maxx = unsafe { args[2].unwrap::<f64>() };
-    //     let miny = unsafe { args[3].unwrap::<f64>() };
-    //     let maxy = unsafe { args[4].unwrap::<f64>() };
-    //     let grid_lines = unsafe { args[5].unwrap::<bool>() };
-    //     let _ = i.graph_tx.send(GraphSignal::Set {
-    //         graph_name, minx, maxx, miny, maxy, grid_lines
-    //     });
-    //     Ok(Val::Unit)
-    // }
     fn type_check(t: Vec<Type>, c: &Call, i: &Interpreter) -> Result<Vec<Val>, Error> {
         if t.len() != c.args.len() {
             let msg = format!("Expected {} arguments but found {}.", t.len(), c.args.len());
@@ -369,8 +262,8 @@ impl BuiltIn {
                 let msg = String::from("Inputs to range function must be positive.");
                 return Err(Error::from(msg, &c.identifier, &c.rparen));
             }
-            let addr = i.heap.alloc(HeapVal::Arr((0..index).map(|i| Val::Num(Num::Int(i))).collect::<Vec<_>>()));
-            Ok(Val::Arr(addr))
+            let range = Val::Iter(Iter::Range(Range::new(0, index, 1)));
+            Ok(range)
         } else if c.args.len() == 3 {
             todo!()
         } else {

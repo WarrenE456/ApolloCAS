@@ -6,7 +6,6 @@ use crate::runtime::val::Type;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Command(Command),
     Var(Var),
     Set(Set),
     SetIndex(SetIndex),
@@ -22,9 +21,6 @@ pub enum Statement {
     For(For),
 }
 
-#[derive(Debug, Clone)]
-pub struct Command {
-}
 #[derive(Debug, Clone)]
 pub struct Var {
     pub identifier: Tok,

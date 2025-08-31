@@ -11,14 +11,19 @@ pub enum HeapVal {
     Arr(Vec<Val>),
 }
 
+#[derive(Clone, Debug)]
 pub struct HeapIter {
     addr: u64,
     idx: usize
 }
 
 impl HeapIter {
-    pub fn new(addr: u64) -> Self{
+    pub fn new(addr: u64, h: &Heap) -> Self{
+        h.add_hidden_ref(addr);
         Self { addr, idx: 0 }
+    }
+    pub fn destory(&self, h: &Heap) {
+        h.rm_hidden_ref(self.addr);
     }
     pub fn next(&mut self, h: &Heap) -> Option<Val> {
         if self.idx < h.len(self.addr) {

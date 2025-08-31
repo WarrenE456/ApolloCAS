@@ -18,32 +18,16 @@ use mem::gc::GC;
 
 /* TODO
 *
-* Symbol set expressions
-* blankline error
-*
-* range object
+* range object / iterators
+* Unit "()"
+* sym heap
+* copy, type fn
 * proc casting
 * explicit casting
-* copy, type fn
 * polymorphic types
-*
-* fix window resize issue
-* fix segfault
-* types
-* 'infinite' percision rational number representation
-* CAS
-*
-* Error::from
-* seperate rendering from update
-* fix error on blank lines
 * anonymous fns
 * special characters in strings
-* string ops
-* line aa
-* let lists
-* implement Error::from(msg, tok)
 * <c-d> to interupt
-* add comma statement
 *
 */
 

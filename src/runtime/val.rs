@@ -1,6 +1,6 @@
 use std::ops::{Mul, Div, Add, Sub};
 
-use crate::mem::heap::Heap;
+use crate::mem::heap::{Heap, HeapIter};
 use crate::runtime::{Interpreter, builtin::BuiltIn};
 use crate::parser::expr::Expr;
 use crate::error::{Error, Special};
@@ -93,6 +93,7 @@ pub enum Val {
     Str(u64),
     Arr(u64),
     Char(u8),
+    Iter(Iter),
     Sym(SymExpr),
 }
 
@@ -104,8 +105,11 @@ impl Val {
             Val::BuiltIn(b) => b.to_string(),
             Val::Unit => String::from("()"),
             Val::Bool(b) => String::from(if *b { "true" } else { "false" }),
-            // TODO print types
+
+            // TODO pretty printing
             Val::Proc(_) => String::from("<procedure>"),
+            Val::Iter(_) => String::from("<iter>"),
+
             Val::Str(addr) => h.to_string(*addr),
             Val::Arr(addr) => h.to_string(*addr),
             Val::Char(c) => (*c as char).to_string(),
@@ -136,6 +140,7 @@ impl Val {
                 let param_t: Vec<Type> = params.iter().map(|(_, t)| t.clone()).collect();
                 Type::Proc(param_t, Box::new(return_t.clone()))
             }
+            Val::Iter(_) => Type::Iter,
             Val::Str(_) => Type::Str,
             Val::Arr(_) => Type::Arr,
             Val::Char(_) => Type::Char,
@@ -199,6 +204,44 @@ impl Val {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum Iter {
+    Range(Range),
+    Heap(HeapIter),
+}
+
+impl Iter {
+    pub fn next(&mut self, heap: &Heap) -> Option<Val> {
+        match self {
+            Iter::Range(r) => r.next(),
+            Iter::Heap(h) => h.next(heap),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Range {
+    i: i64,
+    start: i64,
+    stop: i64,
+    inc: i64,
+}
+
+impl Range {
+    pub fn new(start: i64, stop: i64, inc: i64) -> Range {
+        Range { i: start, start, stop, inc }
+    }
+    pub fn next(&mut self) -> Option<Val> {
+        if self.i < self.stop {
+            let next = Val::Num(Num::Int(self.i));
+            self.i += self.inc;
+            Some(next)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum SymT {
     Any,
@@ -253,6 +296,7 @@ pub enum Type {
     Arr,
     Char,
     Auto,
+    Iter,
     Proc(Vec<Type>, Box<Type>),
     Sym(SymT),
 }
@@ -277,6 +321,7 @@ impl Type {
             Sym(SymT::Symbol) => String::from("Symbol"),
             Proc(param, ret) =>
                 format!("({} -> {})", param.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "), ret.to_string()),
+            Iter => String::from("Iter"),
         }
     }
     fn gen_type_error(expected: &Type, found: &Type) -> String {

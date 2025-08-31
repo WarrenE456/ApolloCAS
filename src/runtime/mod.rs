@@ -8,7 +8,7 @@ use crate::mem::env::Env;
 use crate::mem::heap::{Heap, HeapVal, HeapIter};
 use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
-use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
+use crate::runtime::{builtin::BuiltIn, val::{Num, Type, Iter}};
 
 use std::sync::Arc;
 
@@ -422,9 +422,10 @@ impl<'a> Interpreter {
         Ok(())
     }
     fn _for(&self, f: &For) -> Result<(), Error> {
-        let addr = match self.expr(&f.iter)? {
-            Val::Arr(addr) => addr,
-            Val::Str(addr) => addr,
+        let mut iter = match self.expr(&f.iter)? {
+            Val::Arr(addr) => Iter::Heap(HeapIter::new(addr, &self.heap)),
+            Val::Str(addr) => Iter::Heap(HeapIter::new(addr, &self.heap)),
+            Val::Iter(i) => i,
             other => {
                 let msg = format!("Attempt to iterate over a {}.", other.type_as_string());
                 return Err(Error { special: None, msg,
@@ -432,14 +433,14 @@ impl<'a> Interpreter {
                 });
             }
         };
-        self.heap.add_hidden_ref(addr);
-        let mut iter = HeapIter::new(addr);
         while let Some(v) = iter.next(&self.heap) {
             let for_scope = Interpreter::from(self);
             for_scope.env.put(f.identifier.lexeme.clone(), v);
             for_scope.block(&f.body)?;
         }
-        self.heap.rm_hidden_ref(addr);
+        if let Iter::Heap(hi) = iter {
+            hi.destory(&self.heap);
+        }
         Ok(())
     }
     pub fn interpret(&'a self, stmt: &Statement) -> Result<Option<Val>, Error> {
@@ -462,7 +463,6 @@ impl<'a> Interpreter {
             Break(e) => Err(e.clone()),
             Continue(e) => Err(e.clone()),
             Return(e) => Err(e.clone()),
-            Command(_) => todo!(),
         };
     }
 }
