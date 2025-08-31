@@ -18,7 +18,6 @@ fn curly_braces_closed(s: &String) -> bool {
 
 pub struct Apollo {
     global: Arc<RwLock<Interpreter>>,
-    // pub graph_tx: Sender<GraphSignal>,
 }
 
 impl<'a> Apollo {
@@ -69,6 +68,11 @@ impl<'a> Apollo {
                 if curly_braces_closed(&program) {
                     break;
                 }
+            }
+
+            if program.trim().len() == 0 {
+                prev_line_count += num_new_lines;
+                continue;
             }
             
             let scanner = Scanner::from(program.as_bytes(), prev_line_count + 1);
