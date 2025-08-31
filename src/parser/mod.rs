@@ -29,7 +29,7 @@
 * index -> group ('[' expr ']')*
 * group -> '(' expr ')' | call
 * call -> IDENTIFIER args_list
-* primary -> NUMBER | (IDENTIFIER | call) | BOOL | arr
+* primary -> NUMBER | (IDENTIFIER | call) | BOOL | arr | "()"
 * arr -> '[' (expr (',' expr )* )? ']'
 *
 * command -> ':' command arg*
@@ -132,7 +132,7 @@ impl Parser {
 
         Ok(Expr::Arr(elements))
     }
-    // primary -> NUMBER | (IDENTIFIER | call) | BOOL | arr
+    // primary -> NUMBER | (IDENTIFIER | call) | BOOL | arr | "()"
     fn primary(&self) -> Result<Expr, Error> {
         let next = self.advance().clone();
         let lexeme = if next.lexeme.as_bytes().get(0).map(|c| *c == b'\n').unwrap_or(false) {
@@ -141,7 +141,7 @@ impl Parser {
             format!("'{}'", next.lexeme)
         };
         match next.t {
-            TokType::Float | TokType::Int | TokType::True | TokType::False | TokType::Str | TokType::Char => {
+            TokType::Float | TokType::Int | TokType::True | TokType::False | TokType::Str | TokType::Char | TokType::Unit => {
                 Ok(Expr::Literal(next))
             }
             TokType::Identifier => {

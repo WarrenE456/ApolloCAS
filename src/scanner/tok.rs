@@ -1,11 +1,11 @@
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokType {
     // Single characters
-    Star, Slash, LParen, RParen, Carrot, Equal, Comma,
+    Star, Slash, RParen, Carrot, Equal, Comma,
     LCurly, RCurly, LBrac, RBrac, Colon, Dollar,
     // 1-2 Characters
     Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual, Arrow, Minus,
-    Plus, PlusPlus,
+    Plus, PlusPlus, LParen, Unit,
     // Fixed number of characters
     Let, Def, Or, And, If, Else, While, Break, Continue, Set, True, False, Proc, Return, In, For,
     AnyT, IntT, FloatT, FnT, BuiltInT, BoolT, UnitT, StrT, ArrT, CharT, ZT, SymAnyT, SymbolT,

@@ -103,7 +103,7 @@ impl Val {
             Val::Num(n) => n.to_string(),
             Val::Function(_, e) => e.to_string(),
             Val::BuiltIn(b) => b.to_string(),
-            Val::Unit => String::from("()"),
+            Val::Unit => String::from("{}"),
             Val::Bool(b) => String::from(if *b { "true" } else { "false" }),
 
             // TODO pretty printing

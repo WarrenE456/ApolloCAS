@@ -18,7 +18,6 @@ use mem::gc::GC;
 
 /* TODO
 *
-* range object / iterators
 * Unit "()"
 * sym heap
 * copy, type fn

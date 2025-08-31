@@ -117,22 +117,28 @@ impl<'a> Scanner<'a> {
             b')' => Some(Ok(self.make_tok(RParen, 0))),
             b'^' => Some(Ok(self.make_tok(Carrot, 0))),
             b',' => Some(Ok(self.make_tok(Comma, 0))),
-            b'{' => Some(Ok(self.make_tok(LCurly, 0))),
             b'}' => Some(Ok(self.make_tok(RCurly, 0))),
             b'[' => Some(Ok(self.make_tok(LBrac, 0))),
             b']' => Some(Ok(self.make_tok(RBrac, 0))),
             b':' => Some(Ok(self.make_tok(Colon, 0))),
             b'$' => Some(Ok(self.make_tok(Dollar, 0))),
+            b'{' => {
+                if self.is_match(b'}') {
+                    Some(Ok(self.make_tok(Unit, 1)))
+                } else {
+                    Some(Ok(self.make_tok(LCurly, 0)))
+                }
+            }
             b'+' => {
                 if self.is_match(b'+') {
-                    Some(Ok(self.make_tok(PlusPlus, 0)))
+                    Some(Ok(self.make_tok(PlusPlus, 1)))
                 } else {
                     Some(Ok(self.make_tok(Plus, 0)))
                 }
             }
             b'-' => {
                 if self.is_match(b'>') {
-                    Some(Ok(self.make_tok(Arrow, 0)))
+                    Some(Ok(self.make_tok(Arrow, 1)))
                 } else {
                     Some(Ok(self.make_tok(Minus, 0)))
                 }

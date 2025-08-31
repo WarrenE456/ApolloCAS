@@ -32,6 +32,7 @@ impl<'a> Interpreter {
             True => Ok(Val::Bool(true)),
             False => Ok(Val::Bool(false)),
             Char => Ok(Val::Char(tok.lexeme.as_bytes()[0])),
+            Unit => Ok(Val::Unit),
             Str => {
                 let addr = self.heap.alloc(HeapVal::Str(Vec::from(tok.lexeme.as_bytes())));
                 Ok(Val::Str(addr))
