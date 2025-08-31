@@ -1,8 +1,6 @@
 pub extern crate num_bigint;
-extern crate num_traits;
 
 use num_bigint::{BigInt, Sign};
-use num_traits::One;
 
 use std::str::FromStr;
 use std::collections::HashMap;
@@ -60,7 +58,8 @@ impl SymExpr {
     pub fn distribute(self, sum: Sum) -> Sum {
         let mut terms = Vec::new();
         for term in sum.terms.iter() {
-            let term = self.clone().mul(term.clone());
+            let factors = vec![self.clone(), term.clone()];
+            let term = SymExpr::Product(Product{ factors }.flatten());
             terms.push(term);
         }
         Sum { terms }
@@ -68,20 +67,8 @@ impl SymExpr {
     pub fn seperate_coef(self) -> (BigInt, SymExpr) {
         match self {
             SymExpr::Product(p) => p.seperate_coef(),
-            SymExpr::Z(z) => (z, SymExpr::Z(BigInt::one())),
-            other => (BigInt::one(), other),
-        }
-    }
-    pub fn add(self, other: SymExpr) -> SymExpr {
-        match (self, other) {
-            (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a + b),
-            (a, b) => SymExpr::Sum(Sum { terms: vec![a, b] }.flatten()),
-        }
-    }
-    pub fn mul(self, other: SymExpr) -> SymExpr {
-        match (self, other) {
-            (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a * b),
-            (a, b) => SymExpr::Product(Product { factors: vec![a, b] }.flatten()),
+            SymExpr::Z(z) => (z, SymExpr::Z(BigInt::ZERO + 1)),
+            other => (BigInt::ZERO + 1, other),
         }
     }
     /*
@@ -93,89 +80,51 @@ impl SymExpr {
             Order::Equal if a and b are the same order
             Order::Equal should only be used for a, b in Z because otherwise order could be ambiguous
     Rules:
-        Certain expression kinds are always less than others:
-            Z < Symbol =? Product =? Sum =? Pow
-            and Symbol < (Pow, Sum)
+        Expression kinds ordered from first to last,
+            Z < Symbol = Product = Sum = Pow
+            Symbol < (Pow, Sum)
         If expressions are of the same kind...
-        both Z:
+        Z:
             z_i comes before z_k if z_i < z_k
             this only really matters for ordering pow
-        both Sym:
+        Sym:
             symbol a comes before symbol b if len(a) < len(b)
             if len(a) = len(b), then ordering lexographically
-        a, b:
+        Product & Pow & Sum and Symbol:
             a comes before b if sum_deg(a) comes after sum_deg(b), implying Symbol < Pow
             otherwise a comes before b if len(a) > len(b), len is the number of terms, len(sym) < len(product | sum)
-            otherwise compare first arguements, then the next. At this point a and b must both be sums.
+            otherwise ... compare first arguements, then the next
     */
     pub fn order (&self, other: &SymExpr) -> Ordering {
-        // TODO double check work
         match (self, other) {
             (SymExpr::Z(z), SymExpr::Z(zz)) => z.cmp(zz),
             (SymExpr::Z(_), _) => Ordering::Less,
 
-            (SymExpr::Symbol(_), SymExpr::Z(_)) => Ordering::Greater,
+            (SymExpr::Symbol(s), SymExpr::Z(_)) => Ordering::Greater,
             (SymExpr::Symbol(s), SymExpr::Symbol(ss)) => string_order(&s, &ss),
-            (SymExpr::Symbol(s), SymExpr::Pow(_) | SymExpr::Sum(_)) => Ordering::Less,
+            (SymExpr::Symbol(s), _) => Ordering::Less,
 
             
-            (SymExpr::Sum(_), SymExpr::Z(_) | SymExpr::Symbol(_)) => Ordering::Greater,
+            (SymExpr::Sum(s), SymExpr::Z(_) | SymExpr::Symbol(_)) => Ordering::Greater,
             (SymExpr::Sum(s), SymExpr::Sum(ss)) => s.order(ss),
+            (SymExpr::Sum(s), _) => Ordering::Less,
 
-            (SymExpr::Product(_), SymExpr::Z(_)) => Ordering::Greater,
-            (SymExpr::Product(p), SymExpr::Product(pp)) => panic!("{:?} {:?}", p, pp), // TODO
+(SymExpr::Product(p), SymExpr::Z(_) | SymExpr::Symbol(_) | SymExpr::Sum(_)) => Ordering::Greater,
+(SymExpr::Product(p), SymExpr::Product(pp)) => panic!("{:?} {:?}", p, pp), // TODO
+(SymExpr::Product(p), SymExpr::Pow(pp)) => Self::order_product_power(p, pp),
 
-            (SymExpr::Pow(_), SymExpr::Z(_) | SymExpr::Symbol(_)) => Ordering::Greater,
-            (SymExpr::Pow(p), SymExpr::Pow(pp)) => p.order(pp),
-
-            (a, b) => Self::order_aux(a, b),
-        }
-    }
-    fn order_aux(a: &SymExpr, b: &SymExpr) -> Ordering {
-        let a_deg = a.sum_deg().order(&b.sum_deg());
-        if a_deg.is_gt() {
-            return Ordering::Greater;
-        }
-        else if a_deg.is_lt() {
-            return Ordering::Less;
-        }
-
-        let a_n = a.num_terms();
-        let b_n = a.num_terms();
-
-        if a_n < b_n {
-            return Ordering::Less;
-        }
-        else if a_n > b_n {
-            return Ordering::Greater;
-        }
-
-        match (a, b) {
-            (SymExpr::Sum(a), SymExpr::Sum(b)) => a.order_eq_len_sum(b),
-            _ => unreachable!()
-        }
-    }
-    pub fn sum_deg(&self) -> SymExpr {
-        match self {
-            SymExpr::Z(_) => SymExpr::Z(BigInt::ZERO),
-            SymExpr::Symbol(_) => SymExpr::Z(BigInt::one()),
-            SymExpr::Pow(p) => *p.exp.clone(),
-            SymExpr::Product(p) => p.factors.iter()
-                .fold(SymExpr::Z(BigInt::ZERO), |acc, x| acc.add(x.sum_deg())),
-            SymExpr::Sum(s) => {
-                if s.terms.len() == 0 {
-                    unreachable!()
-                } else {
-                    s.terms[0].sum_deg() // assumes s is simplified
-                }
+            SymExpr::Pow(p) => match other {
+                SymExpr::Z(_) | SymExpr::Symbol(_) | SymExpr::Sum(_) => Ordering::Greater,
+                SymExpr::Product(pp) => Self::order_product_power(pp, p),
+                SymExpr::Pow(pp) => p.order(pp),
             }
         }
     }
-    pub fn num_terms(&self) -> usize {
-        match self {
-            SymExpr::Sum(s) => s.terms.len(),
-            _ => 0,
-        }
+    pub fn sum_deg(&self) -> SymExpr {
+        todo!()
+    }
+    fn order_product_power(pro: &Product, pow: &Pow) -> Ordering {
+        panic!("{:?}, {:?}", pro, pow); // TODO
     }
 }
 
@@ -252,14 +201,11 @@ impl Sum {
         }
     }
     pub fn simplify(self) -> SymExpr {
-        match self
+        self
             .simplify_each()
             .flatten()
+            .order_terms()
             .combine_like_terms()
-        {
-            SymExpr::Sum(s) => SymExpr::Sum(s.order_terms()),
-            other => other,
-        }
     }
     pub fn to_string(&self) -> String {
         self.terms
@@ -274,17 +220,6 @@ impl Sum {
             terms.push(SymExpr::Sum(term));
         }
         Sum{ terms }
-    }
-    fn order_eq_len_sum(&self, other: &Sum) -> Ordering {
-        assert_eq!(self.terms.len(), other.terms.len());
-        for (a, b) in Iterator::zip(self.terms.iter(), other.terms.iter()) {
-            match a.order(b) {
-                Ordering::Less => return Ordering::Less,
-                Ordering::Greater => return Ordering::Greater,
-                _ => {}
-            }
-        }
-        Ordering::Equal // Should be unreachable
     }
     pub fn order(&self, other: &Sum) -> Ordering {
         if self.terms.len() < other.terms.len() {
@@ -364,14 +299,15 @@ impl Product {
         match (entry, a) {
             (SymExpr::Z(n), SymExpr::Z(nn)) => *n = n.clone() + nn,
             (a, b) => {
-                *a = a.clone().add(b);
+                let terms = vec![a.clone(), b];
+                *a = SymExpr::Sum(Sum { terms }.flatten());
             }
         }
     }
     fn collect_factors(self) -> SymExpr {
         let mut mp = HashMap::new();
-        let one = SymExpr::Z(BigInt::one());
-        let mut numeric = BigInt::one();
+        let one = SymExpr::Z(BigInt::ZERO + 1);
+        let mut numeric = BigInt::ZERO + 1;
         for factor in self.factors {
             if let SymExpr::Pow(p) = factor {
                 let exp = mp.entry(*p.base)
@@ -398,7 +334,7 @@ impl Product {
                 if *z == BigInt::ZERO {
                     numeric += 1;
                 }
-                else if *z == BigInt::one() {
+                else if *z == BigInt::ZERO + 1 {
                     factors.push(base);
                 } else {
                     factors.push(SymExpr::Pow(Pow { base: Box::new(base), exp: Box::new(exp) } ));
@@ -407,7 +343,7 @@ impl Product {
             }
         }
 
-        if numeric != BigInt::one() {
+        if numeric != BigInt::ZERO + 1 {
             factors.push(SymExpr::Z(numeric));
         }
 
@@ -443,7 +379,7 @@ impl Product {
         }
     }
     pub fn seperate_coef(self) -> (BigInt, SymExpr) {
-        let mut coef = BigInt::one();
+        let mut coef = BigInt::ZERO + 1;
         let mut factors = Vec::new();
         for factor in self.factors {
             match factor {
@@ -479,7 +415,7 @@ impl Pow {
 
 fn decompose_u64(n: u64) -> Vec<u32> {
     let mut n = n;
-    let mut decomp = Vec::new();
+    let mut decomp = vec![];
     let mask: u64 = 0xffffffff;
     while n > 0 {
         decomp.push((n & mask) as u32);
