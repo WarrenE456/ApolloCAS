@@ -6,7 +6,6 @@ use crate::parser::statement::*;
 use crate::scanner::tok::{Tok, TokType};
 use crate::mem::env::Env;
 use crate::mem::heap::{Heap, HeapVal, HeapIter};
-use crate::graph::GraphSignal;
 use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
 use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
@@ -14,7 +13,6 @@ use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
 use std::sync::Arc;
 
 pub struct Interpreter {
-    // graph_tx: Sender<GraphSignal>,
     pub env: Arc<Env>,
     pub heap: Arc<Heap>,
 }
