@@ -23,6 +23,8 @@ enum BuiltInT {
     Len,
     Copy,
     Type,
+    Iter,
+    Next,
 }
 
 impl BuiltInT {
@@ -46,6 +48,8 @@ impl BuiltInT {
             Len => "len",
             Copy => "copy",
             Type => "type",
+            Iter => "iter",
+            Next => "next",
         })
     }
 }
@@ -76,6 +80,8 @@ impl BuiltIn {
             "len" => Len,
             "copy" => Copy,
             "type" => Type,
+            "iter" => Iter,
+            "next" => Next,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -319,6 +325,35 @@ impl BuiltIn {
             Ok(Val::Str(addr))
         }
     }
+    fn iter(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 1 {
+            let msg = String::from("'iter' expects one argument.");
+            Err(Error::from(msg, &c.identifier, &c.rparen))
+        } else {
+            match i.expr(&c.args[0])? {
+                Val::Arr(addr) | Val::Str(addr) => Ok(Val::Iter(Iter::Heap(HeapIter::new(addr, &i.heap)))),
+                Val::Iter(i) => Ok(Val::Iter(i)),
+                other => {
+                    let msg = format!("'iter' cannot turn type {} into an iterator.", other.type_as_string());
+                    Err(Error::from(msg, &c.identifier, &c.rparen))
+                }
+            }
+        }
+    }
+    fn next(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 1 {
+            let msg = String::from("'next' expects one argument, an iterator.");
+            Err(Error::from(msg, &c.identifier, &c.rparen))
+        } else {
+            match i.expr(&c.args[0])? {
+                Val::Iter(mut iter) => Ok(iter.next(&i.heap).unwrap_or(Val::Unit)),
+                other => {
+                    let msg = format!("'next' expects an  Iter, but found {}.", other.type_as_string());
+                    Err(Error::from(msg, &c.identifier, &c.rparen))
+                }
+            }
+        }
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -338,6 +373,8 @@ impl BuiltIn {
             Len => Self::len(c, i),
             Copy => Self::copy(c, i),
             Type => Self::_type(c, i),
+            Iter => Self::iter(c, i),
+            Next => Self::next(c, i),
             _ => self.basic(c, 1, i),
         }
     }

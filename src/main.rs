@@ -19,12 +19,13 @@ use mem::gc::GC;
 /* TODO
 *
 * iter
-* compare strings
-* range(1, 2, 3)
+* unit comparison
 * fix heap for ranges and iterators
+* range(1, 2, 3)
 * sym heap
 * proc heap
 * proc as value
+* compare strings
 * copy fn
 * ignore newlines inside parenthesis
 * explicit casting
