@@ -21,6 +21,8 @@ enum BuiltInT {
     Pop,
     Range,
     Len,
+    Copy,
+    Type,
 }
 
 impl BuiltInT {
@@ -42,9 +44,8 @@ impl BuiltInT {
             Pop => "pop",
             Range => "range",
             Len => "len",
-            // Create => "create",
-            // Graph => "graph",
-            // Param => "param",
+            Copy => "copy",
+            Type => "type",
         })
     }
 }
@@ -73,6 +74,8 @@ impl BuiltIn {
             "pop" => Pop,
             "range" => Range,
             "len" => Len,
+            "copy" => Copy,
+            "type" => Type,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -292,6 +295,30 @@ impl BuiltIn {
             }
         }
     }
+    fn copy(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        // if c.args.len() != 1 {
+        //     let msg = String::from("'copy' expects one argument.");
+        //     Err(Error::from(msg, &c.identifier, &c.rparen))
+        // } else {
+        //     match i.expr(c.args[0])? {
+        //         Val::Str(s) =>
+        //         Val::Arr(a) =>
+        //         Val::
+        //     }
+        //     todo!()
+        // }
+        todo!()
+    }
+    fn _type(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 1 {
+            let msg = String::from("'type' expects one argument.");
+            Err(Error::from(msg, &c.identifier, &c.rparen))
+        } else {
+            let typename = HeapVal::Str(i.expr(&c.args[0])?.type_as_string().into());
+            let addr = i.heap.alloc(typename);
+            Ok(Val::Str(addr))
+        }
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -309,10 +336,9 @@ impl BuiltIn {
             Pop => Self::pop(c, i),
             Range => Self::range(c, i),
             Len => Self::len(c, i),
+            Copy => Self::copy(c, i),
+            Type => Self::_type(c, i),
             _ => self.basic(c, 1, i),
-            // Param => Self::param(c, i),
-            // Create => Self::create(c, i),
-            // Graph => Self::graph(c, i),
         }
     }
     pub fn to_string(&self) -> String {

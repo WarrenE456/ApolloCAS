@@ -502,7 +502,7 @@ impl Parser {
             let _ = self.advance();
             self.parse_type()?
         } else {
-            Type::Any
+            Type::Unit
         };
 
         let body = self.block()?;

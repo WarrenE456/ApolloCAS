@@ -18,13 +18,18 @@ use mem::gc::GC;
 
 /* TODO
 *
-* Unit "()"
+* iter
+* compare strings
+* range(1, 2, 3)
+* fix heap for ranges and iterators
 * sym heap
-* copy, type fn
-* proc casting
+* proc heap
+* proc as value
+* copy fn
+* ignore newlines inside parenthesis
 * explicit casting
 * polymorphic types
-* anonymous fns
+* proc casting
 * special characters in strings
 * <c-d> to interupt
 *
