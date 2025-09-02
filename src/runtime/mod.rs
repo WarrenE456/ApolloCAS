@@ -184,6 +184,13 @@ impl<'a> Interpreter {
                         });
                     }
                 }
+                (Val::Unit, Val::Unit) => true,
+                (Val::Str(s), Val::Str(ss)) => {
+                    match (self.heap.get(s).unwrap(), self.heap.get(*ss).unwrap()) {
+                        (HeapVal::Str(s), HeapVal::Str(ss)) => s == ss,
+                        _ => unreachable!(),
+                    }
+                }
                 (a, b) => {
                     let msg = format!(
                         "Attempt to compare types {} and {}.",

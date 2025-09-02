@@ -11,7 +11,7 @@ pub enum HeapVal {
     Arr(Vec<Val>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HeapIter {
     addr: u64,
     idx: usize
