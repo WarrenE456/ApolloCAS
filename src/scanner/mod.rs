@@ -110,6 +110,12 @@ impl<'a> Scanner<'a> {
         self.p_pos.set(self.pos.get());
         let c = self.advance();
         match c {
+            b'#' => {
+                while self.peek() != b'\n' {
+                    let _ = self.advance();
+                }
+                self.get_next_tok()
+            }
             b'*' => Some(Ok(self.make_tok(Star, 0))),
             b'/' => Some(Ok(self.make_tok(Slash, 0))),
             b'=' => Some(Ok(self.make_tok(Equal, 0))),
