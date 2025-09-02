@@ -70,7 +70,7 @@ impl<'a> Apollo {
                 }
             }
 
-            if program.trim().len() == 0 {
+            if program.trim().len() == 0 || program.as_bytes().get(0).map(|v| *v == b'#').unwrap_or(false) {
                 prev_line_count += num_new_lines;
                 continue;
             }
