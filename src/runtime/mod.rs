@@ -5,10 +5,10 @@ use crate::error::{Error, Special};
 use crate::parser::statement::*;
 use crate::scanner::tok::{Tok, TokType};
 use crate::mem::env::Env;
-use crate::mem::heap::{Heap, HeapVal, HeapIter};
+use crate::mem::heap::{Heap, HeapVal, HeapIter, Iter};
 use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
-use crate::runtime::{builtin::BuiltIn, val::{Num, Type, Iter}};
+use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
 
 use std::sync::Arc;
 
@@ -430,9 +430,9 @@ impl<'a> Interpreter {
         Ok(())
     }
     fn _for(&self, f: &For) -> Result<(), Error> {
-        let mut iter = match self.expr(&f.iter)? {
-            Val::Arr(addr) => Iter::Heap(HeapIter::new(addr, &self.heap)),
-            Val::Str(addr) => Iter::Heap(HeapIter::new(addr, &self.heap)),
+        let addr = match self.expr(&f.iter)? {
+            Val::Arr(addr) => addr,
+            Val::Str(addr) => addr,
             Val::Iter(i) => i,
             other => {
                 let msg = format!("Attempt to iterate over a {}.", other.type_as_string());
@@ -441,14 +441,13 @@ impl<'a> Interpreter {
                 });
             }
         };
-        while let Some(v) = iter.next(&self.heap) {
+        self.heap.add_pin(addr);
+        while let Some(v) = self.heap.next_iter(addr) {
             let for_scope = Interpreter::from(self);
             for_scope.env.put(f.identifier.lexeme.clone(), v);
             for_scope.block(&f.body)?;
         }
-        if let Iter::Heap(hi) = iter {
-            hi.destory(&self.heap);
-        }
+        self.heap.rm_pin(addr);  
         Ok(())
     }
     pub fn interpret(&'a self, stmt: &Statement) -> Result<Option<Val>, Error> {

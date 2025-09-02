@@ -93,7 +93,7 @@ pub enum Val {
     Str(u64),
     Arr(u64),
     Char(u8),
-    Iter(Iter),
+    Iter(u64),
     Sym(SymExpr),
 }
 
@@ -204,43 +204,6 @@ impl Val {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum Iter {
-    Range(Range),
-    Heap(HeapIter),
-}
-
-impl Iter {
-    pub fn next(&mut self, heap: &Heap) -> Option<Val> {
-        match self {
-            Iter::Range(r) => r.next(),
-            Iter::Heap(h) => h.next(heap),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Range {
-    i: i64,
-    start: i64,
-    stop: i64,
-    inc: i64,
-}
-
-impl Range {
-    pub fn new(start: i64, stop: i64, inc: i64) -> Range {
-        Range { i: start, start, stop, inc }
-    }
-    pub fn next(&mut self) -> Option<Val> {
-        if self.i < self.stop {
-            let next = Val::Num(Num::Int(self.i));
-            self.i += self.inc;
-            Some(next)
-        } else {
-            None
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum SymT {

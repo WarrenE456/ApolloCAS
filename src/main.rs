@@ -18,10 +18,9 @@ use mem::gc::GC;
 
 /* TODO
 *
-* iter
-* unit comparison
 * fix heap for ranges and iterators
 * range(1, 2, 3)
+* comments
 * sym heap
 * proc heap
 * proc as value

@@ -3,32 +3,87 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
 use std::collections::{HashMap, HashSet};
 
-use crate::runtime::val::Val;
+use crate::runtime::val::{Val, Num};
 
 #[derive(Clone, Debug)]
 pub enum HeapVal {
     Str(Vec<u8>),
     Arr(Vec<Val>),
+    Iter(Iter)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
+pub enum Iter {
+    Range(Range),
+    Heap(HeapIter),
+}
+
+impl Iter {
+    pub fn next(&self, heap: &Heap) -> Option<Val> {
+        match self {
+            Iter::Range(r) => r.next(),
+            Iter::Heap(h) => h.next(heap),
+        }
+    }
+    pub fn len(&self, heap: &Heap) -> usize {
+        match self {
+            Iter::Range(r) => (r.stop - r.start + 1).try_into().unwrap(),
+            Iter::Heap(h) => heap.len(h.addr),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Range {
+    i: RwLock<i64>,
+    start: i64,
+    stop: i64,
+    inc: i64,
+}
+
+impl Clone for Range {
+    fn clone(&self) -> Self {
+        Range { i: RwLock::new(self.i.read().unwrap().clone()), start: self.start, stop: self.stop, inc: self.inc }
+    }
+}
+
+impl Range {
+    pub fn new(start: i64, stop: i64, inc: i64) -> Range {
+        Range { i: RwLock::new(start), start, stop, inc }
+    }
+    pub fn next(&self) -> Option<Val> {
+        let mut i = self.i.write().unwrap();
+        if *i < self.stop {
+            let next = Val::Num(Num::Int(*i));
+            *i += self.inc;
+            Some(next)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct HeapIter {
-    addr: u64,
-    idx: usize
+    pub addr: u64,
+    pub idx: RwLock<usize>,
+}
+
+impl Clone for HeapIter {
+    fn clone(&self) -> Self {
+        HeapIter { idx: RwLock::new(self.idx.read().unwrap().clone()), addr: self.addr }
+    }
 }
 
 impl HeapIter {
-    pub fn new(addr: u64, h: &Heap) -> Self{
-        h.add_hidden_ref(addr);
-        Self { addr, idx: 0 }
+    pub fn new(addr: u64) -> Self{
+        Self { addr, idx: RwLock::new(0) }
     }
-    pub fn destory(&self, h: &Heap) {
-        h.rm_hidden_ref(self.addr);
-    }
-    pub fn next(&mut self, h: &Heap) -> Option<Val> {
-        if self.idx < h.len(self.addr) {
-            self.idx += 1;
-            Some(h.get_at(self.addr, self.idx - 1)?)
+    pub fn next(&self, h: &Heap) -> Option<Val> {
+        let mut idx = self.idx.write().unwrap();
+        if *idx < h.len(self.addr) {
+            *idx += 1;
+            Some(h.get_at(self.addr, *idx - 1)?)
         } else {
             None
         }
@@ -82,10 +137,10 @@ impl Heap {
         });
         to_free.into_iter().for_each(|addr| self.free(addr));
     }
-    pub fn add_hidden_ref(&self, addr: u64) {
+    pub fn add_pin(&self, addr: u64) {
         self.hidden_ref.write().unwrap().insert(addr);
     }
-    pub fn rm_hidden_ref(&self, addr: u64) {
+    pub fn rm_pin(&self, addr: u64) {
         self.hidden_ref.write().unwrap().remove(&addr);
     }
     pub fn get(&self, id: u64) -> Option<HeapVal> {
@@ -93,44 +148,51 @@ impl Heap {
     }
     pub fn get_at(&self, id: u64, idx: usize) -> Option<Val> {
         self.mem.read().unwrap().get(&id).map(|v| match v {
-            HeapVal::Arr(arr) => arr[idx].clone(),
-            HeapVal::Str(s) => Val::Char(s[idx]),
-        })
+            HeapVal::Arr(arr) => Some(arr[idx].clone()),
+            HeapVal::Str(s) => Some(Val::Char(s[idx])),
+            _ => None
+        }).flatten()
     }
     pub fn set_arr(&self, id: u64, idx: usize, v: Val) {
         self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
             HeapVal::Arr(arr) => arr[idx] = v,
-            _ => unreachable!(),
+            _ => panic!("Cannot call set_arr on non-arr"),
         });
     }
     pub fn push_arr(&self, id: u64, v: Val) {
         self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
             HeapVal::Arr(arr) => arr.push(v),
-            _ => unreachable!(),
+            _ => panic!("Cannot call push_arr on non-arr"),
         });
     }
     pub fn pop_arr(&self, id: u64) -> Option<Val> {
         self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
             HeapVal::Arr(arr) => arr.pop(),
-            _ => unreachable!(),
+            _ => panic!("Cannot call pop_arr on non-arr"),
         }).unwrap_or(None)
     }
     pub fn set_str(&self, addr: u64, idx: usize, c: u8) {
         self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str[idx] = c,
-            _ => unreachable!(),
+            _ => panic!("Cannot call set_str on non-string"),
         });
     }
     pub fn push_str(&self, addr: u64, c: u8) {
         self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str.push(c),
-            _ => unreachable!(),
+            _ => panic!("Cannot call push_str on non-string"),
         });
     }
     pub fn pop_str(&self, addr: u64) -> Option<Val> {
         self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str.pop().map(|c| Val::Char(c)),
-            _ => unreachable!(),
+            _ => panic!("Cannot call pop_str on non-string"),
+        }).unwrap_or(None)
+    }
+    pub fn next_iter(&self, addr: u64) -> Option<Val> {
+        self.mem.read().unwrap().get(&addr).map(|v| match v {
+            HeapVal::Iter(iter) => iter.next(self),
+            _ => panic!("Cannot not call iter_next on non-iterator"),
         }).unwrap_or(None)
     }
     pub fn to_string(&self, addr: u64) -> String {
@@ -157,14 +219,17 @@ impl Heap {
                     .join(", ");
                 format!("[{}]", s)
             }
+            // TODO pretty print
+            HeapVal::Iter(_) => String::from("<iter>")
         }
     }
     pub fn len(&self, id: u64) -> usize {
-        let reader = self.mem.read().unwrap();
+        let reader = self.mem.try_read().unwrap();
         let v = reader.get(&id).unwrap();
         match v {
             HeapVal::Str(s) => s.len(),
             HeapVal::Arr(a) => a.len(),
+            HeapVal::Iter(iter) => iter.len(self),
         }
     }
     pub fn alloc(&self, val: HeapVal) -> u64 {

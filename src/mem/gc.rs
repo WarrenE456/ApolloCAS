@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::runtime::val::Val;
-use crate::mem::heap::Heap;
+use crate::mem::heap::{Heap, HeapVal, Iter};
 use crate::mem::env::Env;
 
 #[derive(Debug)]
@@ -22,6 +22,16 @@ impl<'a> GC {
             mp.iter().for_each(|(_, v)| match v {
                 (_,Val::Arr(addr)) => self.heap.mark(*addr),
                 (_,Val::Str(addr)) => self.heap.mark(*addr),
+                (_,Val::Iter(addr)) => {
+                    self.heap.mark(*addr);
+                    self.heap.get(*addr).map(|hv| match hv {
+                        HeapVal::Iter(i) => match i {
+                            Iter::Heap(hi) => self.heap.mark(hi.addr),
+                            Iter::Range(_) => {}
+                        }
+                        _ => unreachable!(),
+                    });
+                }
                 _ => {}
             });
         }

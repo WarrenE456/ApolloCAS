@@ -1,6 +1,8 @@
-use crate::runtime::*;
-use crate::runtime::val::{Num, Range};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::runtime::*;
+use crate::runtime::val::Num;
+use crate::mem::heap::{Iter, Range};
 
 // TODO inverse trig and other other asortment of other asortments of other assortermentnetms... of functions
 // round floor ceil
@@ -271,8 +273,9 @@ impl BuiltIn {
                 let msg = String::from("Inputs to range function must be positive.");
                 return Err(Error::from(msg, &c.identifier, &c.rparen));
             }
-            let range = Val::Iter(Iter::Range(Range::new(0, index, 1)));
-            Ok(range)
+            let range = HeapVal::Iter(Iter::Range(Range::new(0, index, 1)));
+            let addr = i.heap.alloc(range);
+            Ok(Val::Iter(addr))
         } else if c.args.len() == 3 {
             todo!()
         } else {
@@ -331,7 +334,11 @@ impl BuiltIn {
             Err(Error::from(msg, &c.identifier, &c.rparen))
         } else {
             match i.expr(&c.args[0])? {
-                Val::Arr(addr) | Val::Str(addr) => Ok(Val::Iter(Iter::Heap(HeapIter::new(addr, &i.heap)))),
+                Val::Arr(addr) | Val::Str(addr) => {
+                    let iter = HeapVal::Iter(Iter::Heap(HeapIter::new(addr)));
+                    let addr = i.heap.alloc(iter);
+                    Ok(Val::Iter(addr))
+                }
                 Val::Iter(i) => Ok(Val::Iter(i)),
                 other => {
                     let msg = format!("'iter' cannot turn type {} into an iterator.", other.type_as_string());
@@ -346,7 +353,7 @@ impl BuiltIn {
             Err(Error::from(msg, &c.identifier, &c.rparen))
         } else {
             match i.expr(&c.args[0])? {
-                Val::Iter(mut iter) => Ok(iter.next(&i.heap).unwrap_or(Val::Unit)),
+                Val::Iter(iter) => Ok(i.heap.next_iter(iter).unwrap_or(Val::Unit)),
                 other => {
                     let msg = format!("'next' expects an  Iter, but found {}.", other.type_as_string());
                     Err(Error::from(msg, &c.identifier, &c.rparen))
