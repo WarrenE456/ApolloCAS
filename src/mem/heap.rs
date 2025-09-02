@@ -53,7 +53,7 @@ impl Range {
     }
     pub fn next(&self) -> Option<Val> {
         let mut i = self.i.write().unwrap();
-        if *i < self.stop {
+        if (self.inc > 0 && *i < self.stop) || (self.inc < 0 && *i > self.stop)  {
             let next = Val::Num(Num::Int(*i));
             *i += self.inc;
             Some(next)

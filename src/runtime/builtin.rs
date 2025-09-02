@@ -269,15 +269,31 @@ impl BuiltIn {
                     .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
                     .unwrap::<i64>()
             };
-            if index < 0 {
-                let msg = String::from("Inputs to range function must be positive.");
-                return Err(Error::from(msg, &c.identifier, &c.rparen));
-            }
             let range = HeapVal::Iter(Iter::Range(Range::new(0, index, 1)));
             let addr = i.heap.alloc(range);
             Ok(Val::Iter(addr))
         } else if c.args.len() == 3 {
-            todo!()
+            let start = unsafe {
+                Type::Int
+                    .coerce(i.expr(&c.args[0])?)
+                    .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
+                    .unwrap::<i64>()
+            };
+            let stop = unsafe {
+                Type::Int
+                    .coerce(i.expr(&c.args[1])?)
+                    .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
+                    .unwrap::<i64>()
+            };
+            let inc = unsafe {
+                Type::Int
+                    .coerce(i.expr(&c.args[2])?)
+                    .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
+                    .unwrap::<i64>()
+            };
+            let range = HeapVal::Iter(Iter::Range(Range::new(start, stop, inc)));
+            let addr = i.heap.alloc(range);
+            Ok(Val::Iter(addr))
         } else {
             let msg= format!("Range expected 1 or 3 arguments, but found {}.", c.args.len());
             return Err(Error::from(msg, &c.identifier, &c.rparen));
