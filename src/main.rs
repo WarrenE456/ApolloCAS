@@ -18,7 +18,7 @@ use mem::gc::GC;
 
 /* TODO
 *
-* sym heap
+* negation
 * operations on symtypes
 * proc heap
 * copy fn

@@ -1,3 +1,6 @@
+use crate::sym::num_bigint::{BigInt, BigUint, Sign};
+use crate::sym::num_traits::One;
+
 use crate::scanner::tok::{Tok, TokType};
 use crate::sym::*;
 
@@ -95,6 +98,7 @@ impl Expr {
             Expr::Binary(b) => b.to_sym(),
             Expr::Group(g) => g.to_sym(),
             Expr::Sym(_, s) => s.to_sym(),
+            Expr::Negate(n) => n.to_sym(),
             _ => Err(format!("Cannot convert {} expression to a symbolic expression.", self.kind_name()))
  // TODO
         }
@@ -119,10 +123,15 @@ impl Binary {
         Self { operators, operands }
     }
     fn sum_to_sym(&self) -> Result<SymExpr, String> {
-        assert!(self.operators[0].t == TokType::Plus);
         let mut terms = Vec::new();
-        for operand in self.operands.iter() {
-            terms.push(operand.to_sym()?); 
+        let op = self.operators[0].t;
+        for (i,operand) in self.operands.iter().enumerate() {
+            let expr = if op == TokType::Minus && i > 0 {
+                Negate::negate_sym_expr(operand.to_sym()?)
+            } else {
+                operand.to_sym()?
+            };
+            terms.push(expr); 
         }
         Ok(SymExpr::Sum(Sum { terms }))
     }
@@ -137,9 +146,8 @@ impl Binary {
         use crate::scanner::tok::TokType;
         let opt = self.operators[0].t;
         match opt {
-            TokType::Plus => self.sum_to_sym(),
+            TokType::Plus | TokType::Minus => self.sum_to_sym(),
             TokType::Star => self.prod_to_sym(),
-            TokType::Minus => todo!(),
             TokType::Slash => todo!(),
             _ => unreachable!(),
         }
@@ -150,6 +158,16 @@ impl Binary {
 pub struct Negate {
     pub minus: Tok,
     pub value: Box<Expr>
+}
+
+impl Negate {
+    fn negate_sym_expr(symexpr: SymExpr) -> SymExpr {
+        let neg_one = SymExpr::Z(BigInt::from_biguint(Sign::Minus, BigUint::one()));
+        SymExpr::mul(neg_one, symexpr)
+    }
+    pub fn to_sym(&self) -> Result<SymExpr, String> {
+        self.value.to_sym().map(|v| Negate::negate_sym_expr(v))
+    }
 }
 
 #[derive(Debug, Clone)]

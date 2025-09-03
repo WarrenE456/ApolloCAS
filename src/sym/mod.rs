@@ -1,5 +1,5 @@
 pub extern crate num_bigint;
-extern crate num_traits;
+pub extern crate num_traits;
 
 use num_bigint::{BigInt, Sign};
 use num_traits::One;
@@ -247,6 +247,9 @@ impl Sum {
         }
         if terms.len() == 1 {
             terms.pop().unwrap()
+        }
+        else if terms.len() == 0 {
+            SymExpr::Z(BigInt::ZERO)
         } else {
             SymExpr::Sum(Sum{ terms })
         }
