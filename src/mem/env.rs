@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, Weak, Arc};
 
 use crate::runtime::val::{Val, Type};
+use crate::mem::heap::Heap;
 use crate::error::Error;
 use crate::scanner::tok::Tok;
 
@@ -45,11 +46,11 @@ impl<'a> Env {
     pub fn put(&self, i: String, val: Val) {
         self.mp.lock().unwrap().insert(i, (val.get_type(), val));
     }
-    pub fn set(&self, i: Tok, val: Val) -> Result<(), Error> {
+    pub fn set(&self, i: Tok, val: Val, heap: &Heap) -> Result<(), Error> {
         let contains = self.mp.lock().unwrap().contains_key(&i.lexeme);
         if !contains {
             if let Some(p) = &self.parent {
-                p.set(i, val)
+                p.set(i, val, heap)
             } else {
                 let msg = format!("Attempt to set undefined variable '{}'.", i.lexeme);
                 Err(Error {
@@ -58,7 +59,7 @@ impl<'a> Env {
             }
         } else {
             let (t, _) = self.mp.lock().unwrap().get(&i.lexeme).unwrap().clone();
-            let val = t.coerce(val).map_err(|msg| {
+            let val = t.coerce(val, heap).map_err(|msg| {
                 Error {
                     special: None, msg, col_start: i.col_start, col_end: i.col_end, line: i.line
                 }

@@ -195,7 +195,7 @@ impl BuiltIn {
         }
         let mut vals = Vec::new();
         for (k, (arg, t)) in c.args.iter().zip(t.iter()).enumerate() {
-            let val = t.coerce(i.expr(arg)?).map_err(|msg| {
+            let val = t.coerce(i.expr(arg)?, &i.heap).map_err(|msg| {
                 let msg = format!("{} (at argument {})", msg, k + 1);
                 Error { special: None,
                     msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
@@ -265,7 +265,7 @@ impl BuiltIn {
         if c.args.len() == 1 {
             let index = unsafe {
                 Type::Int
-                    .coerce(i.expr(&c.args[0])?)
+                    .coerce(i.expr(&c.args[0])?, &i.heap)
                     .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
                     .unwrap::<i64>()
             };
@@ -275,19 +275,19 @@ impl BuiltIn {
         } else if c.args.len() == 3 {
             let start = unsafe {
                 Type::Int
-                    .coerce(i.expr(&c.args[0])?)
+                    .coerce(i.expr(&c.args[0])?, &i.heap)
                     .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
                     .unwrap::<i64>()
             };
             let stop = unsafe {
                 Type::Int
-                    .coerce(i.expr(&c.args[1])?)
+                    .coerce(i.expr(&c.args[1])?, &i.heap)
                     .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
                     .unwrap::<i64>()
             };
             let inc = unsafe {
                 Type::Int
-                    .coerce(i.expr(&c.args[2])?)
+                    .coerce(i.expr(&c.args[2])?, &i.heap)
                     .map_err(|msg| Error::from(msg,&c.identifier,&c.rparen))?
                     .unwrap::<i64>()
             };

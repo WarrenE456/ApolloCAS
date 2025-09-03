@@ -1,6 +1,6 @@
 use std::ops::{Mul, Div, Add, Sub};
 
-use crate::mem::heap::{Heap, HeapIter};
+use crate::mem::heap::{Heap, HeapVal};
 use crate::runtime::{Interpreter, builtin::BuiltIn};
 use crate::parser::expr::Expr;
 use crate::error::{Error, Special};
@@ -94,7 +94,7 @@ pub enum Val {
     Arr(u64),
     Char(u8),
     Iter(u64),
-    Sym(SymExpr),
+    Sym(u64),
 }
 
 impl Val {
@@ -113,7 +113,7 @@ impl Val {
             Val::Str(addr) => h.to_string(*addr),
             Val::Arr(addr) => h.to_string(*addr),
             Val::Char(c) => (*c as char).to_string(),
-            Val::Sym(s) => s.to_string(),
+            Val::Sym(addr) => h.to_string(*addr),
         }
     }
     pub unsafe fn unwrap<T>(&self) -> T {
@@ -144,9 +144,7 @@ impl Val {
             Val::Str(_) => Type::Str,
             Val::Arr(_) => Type::Arr,
             Val::Char(_) => Type::Char,
-            Val::Sym(SymExpr::Sum(_) | SymExpr::Product(_) | SymExpr::Pow(_)) => Type::Sym(SymT::Any),
-            Val::Sym(SymExpr::Z(_)) => Type::Sym(SymT::Z),
-            Val::Sym(SymExpr::Symbol(_)) => Type::Sym(SymT::Symbol),
+            Val::Sym(_) => Type::Sym(SymT::Any),
         }
     }
     pub fn type_as_string(&self) -> String {
@@ -290,7 +288,7 @@ impl Type {
     fn gen_type_error(expected: &Type, found: &Type) -> String {
         format!("Expected type {} but found {}.", expected.to_string(), found.to_string())
     }
-    pub fn coerce(&self, v: Val) -> Result<Val, String> {
+    pub fn coerce(&self, v: Val, heap: &Heap) -> Result<Val, String> {
         match self {
             Self::Any | Self::Auto => Ok(v),
             Self::Float => match v {
@@ -304,7 +302,7 @@ impl Type {
                 other => Err(Self::gen_type_error(&Type::Int, &other.get_type())),
             },
             Self::Sym(SymT::Z) => match v{
-                Val::Num(Num::Int(n)) => Ok(Val::Sym(SymExpr::z_from_i64(n))),
+                Val::Num(Num::Int(n)) => Ok(Val::Sym(heap.alloc(HeapVal::Sym(SymExpr::z_from_i64(n))))),
                 other => Err(Self::gen_type_error(&Type::Sym(SymT::Z), &other.get_type()))
             }
             _ => {
@@ -342,7 +340,7 @@ impl ProcVal {
         for (k, arg) in c.args.iter().enumerate() {
             let val = i.expr(&arg)?;
             let (identifier, t) = &self.params[k];
-            let val = t.coerce(val).map_err(|msg| {
+            let val = t.coerce(val, &i.heap).map_err(|msg| {
                 let msg = format!("{} (at argument {})", msg, k + 1);
                 Error{ special: None,
                     msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line 
@@ -355,7 +353,7 @@ impl ProcVal {
             Ok(_) => Ok(Val::Unit),
             Err(Error { special: Some(Special::Return(e, r)), .. }) => {
                 if let Some(e) = e {
-                    let return_val = self.return_t.coerce(scope.expr(&e)?).map_err(|msg| {
+                    let return_val = self.return_t.coerce(scope.expr(&e)?, &i.heap).map_err(|msg| {
                         Error { special: None,
                             msg, col_start: r.col_start, col_end: r.col_end, line: r.line
                         }

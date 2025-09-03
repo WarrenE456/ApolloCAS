@@ -4,12 +4,14 @@ use std::sync::atomic::Ordering::SeqCst;
 use std::collections::{HashMap, HashSet};
 
 use crate::runtime::val::{Val, Num};
+use crate::sym::SymExpr;
 
 #[derive(Clone, Debug)]
 pub enum HeapVal {
     Str(Vec<u8>),
     Arr(Vec<Val>),
-    Iter(Iter)
+    Iter(Iter),
+    Sym(SymExpr),
 }
 
 #[derive(Clone, Debug)]
@@ -195,6 +197,17 @@ impl Heap {
             _ => panic!("Cannot not call iter_next on non-iterator"),
         }).unwrap_or(None)
     }
+    pub fn simplify_sym(&self, addr: u64) {
+
+        let mut mem = self.mem.write().unwrap();
+        let sym = mem.get_mut(&addr).unwrap();
+        match sym {
+            HeapVal::Sym(s) => {
+                *s = std::mem::replace(s, SymExpr::Symbol(String::new())).simplify();
+            }
+            _ => panic!("Cannot call simplify_sym on non-sym"),
+        }
+    }
     pub fn to_string(&self, addr: u64) -> String {
         let reader = self.mem.read().unwrap();
         let v = match reader.get(&addr) {
@@ -220,7 +233,9 @@ impl Heap {
                 format!("[{}]", s)
             }
             // TODO pretty print
-            HeapVal::Iter(_) => String::from("<iter>")
+            HeapVal::Iter(_) => String::from("<iter>"),
+
+            HeapVal::Sym(s) => s.to_string(),
         }
     }
     pub fn len(&self, id: u64) -> usize {
@@ -230,6 +245,7 @@ impl Heap {
             HeapVal::Str(s) => s.len(),
             HeapVal::Arr(a) => a.len(),
             HeapVal::Iter(iter) => iter.len(self),
+            HeapVal::Sym(_) => todo!(),
         }
     }
     pub fn alloc(&self, val: HeapVal) -> u64 {

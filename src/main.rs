@@ -19,10 +19,10 @@ use mem::gc::GC;
 /* TODO
 *
 * sym heap
+* operations on symtypes
 * proc heap
-* proc as value
-* compare strings
 * copy fn
+* proc as value
 * ignore newlines inside parenthesis
 * explicit casting
 * polymorphic types

@@ -5,7 +5,7 @@ use crate::error::{Error, Special};
 use crate::parser::statement::*;
 use crate::scanner::tok::{Tok, TokType};
 use crate::mem::env::Env;
-use crate::mem::heap::{Heap, HeapVal, HeapIter, Iter};
+use crate::mem::heap::{Heap, HeapVal, HeapIter};
 use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
 use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
@@ -319,7 +319,9 @@ impl<'a> Interpreter {
             Arr(a) => self.arr(a),
             Index(i) => self.index(i),
             Sym(dollar, e) => e.to_sym()
-                .map(|se| Val::Sym(se.simplify()))
+                .map(|se| {
+                    Val::Sym(self.heap.alloc(HeapVal::Sym(se.simplify())))
+                })
                 .map_err(|msg| Error::from(msg, dollar, dollar)),
         };
     }
@@ -335,10 +337,10 @@ impl<'a> Interpreter {
                 .map_err(|s| Error::from(s, &a.op, &a.op))?.simplify();
             t.coerce(sym_expr)
                 .map_err(|s| Error::from(s, &a.op, &a.op))
-                .map(|symexpr| Val::Sym(symexpr))?
+                .map(|symexpr| Val::Sym(self.heap.alloc(HeapVal::Sym(symexpr))))?
         } else {
             let val = self.expr(&a.value)?;
-            a.t.coerce(val).map_err(|msg| {
+            a.t.coerce(val, &self.heap).map_err(|msg| {
                 Error { special: None, msg,
                     col_start: a.op.col_start, col_end: a.op.col_end, line: a.op.line
                 }
@@ -353,7 +355,7 @@ impl<'a> Interpreter {
     }
     fn set(&self, s: &Set) -> Result<(), Error> {
         let val = self.expr(&s.value)?;
-        self.env.set(s.identifier.clone(), val.clone())
+        self.env.set(s.identifier.clone(), val.clone(), &self.heap)
     }
     fn def(&self, d: &Def) -> Result<(), Error> {
         self.env.def(
