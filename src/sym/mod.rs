@@ -1,7 +1,7 @@
 pub extern crate num_bigint;
 pub extern crate num_traits;
 
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, ToBigInt};
 use num_traits::One;
 
 use std::str::FromStr;
@@ -18,14 +18,6 @@ pub enum SymExpr {
 }
 
 impl SymExpr {
-    pub fn z_from_i64(n: i64) -> SymExpr {
-        let (sign, n) = if n >= 0 {
-            (Sign::Plus, n as u64)
-        } else {
-            (Sign::Minus, -n as u64)
-        };
-        SymExpr::Z(BigInt::new(sign, decompose_u64(n)))
-    }
     pub fn z_from_string(s: &String) -> SymExpr {
         SymExpr::Z(BigInt::from_str(s.as_str()).unwrap())
     }
@@ -478,15 +470,4 @@ impl Pow {
             order => order,
         }
     }
-}
-
-fn decompose_u64(n: u64) -> Vec<u32> {
-    let mut n = n;
-    let mut decomp = Vec::new();
-    let mask: u64 = 0xffffffff;
-    while n > 0 {
-        decomp.push((n & mask) as u32);
-        n >>= 32;
-    }
-    decomp
 }

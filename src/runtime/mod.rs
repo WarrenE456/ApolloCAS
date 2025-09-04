@@ -41,34 +41,45 @@ impl<'a> Interpreter {
             _ => unreachable!(),
         }
     }
-    fn expect_number(&self, e: &Expr, line: usize, col_start: usize, col_end: usize) -> Result<Num, Error> {
-        match self.expr(e)? {
-            Val::Num(n) => Ok(n),
-            other => {
-                let msg = format!("Expected Number but found {}.", other.type_as_string());
-                Err(Error { special: None, msg, line, col_start, col_end })
-            }
-        }
-    }
+    // TODO remove
+    // fn expect_number(&self, e: &Expr, line: usize, col_start: usize, col_end: usize) -> Result<Num, Error> {
+    //     match self.expr(e)? {
+    //         Val::Num(n) => Ok(n),
+    //         other => {
+    //             let msg = format!("Expected Number but found {}.", other.type_as_string());
+    //             Err(Error { special: None, msg, line, col_start, col_end })
+    //         }
+    //     }
+    // }
     fn binary(&self, b: &Binary) -> Result<Val, Error> {
         use TokType::*;
-        let op = b.operators.first().unwrap();
-        let mut result = self.expect_number(&b.operands.first().unwrap(), op.line, op.col_start, op.col_end)?;
+        let mut result = self.expr(&b.operands.first().unwrap())?;
         for (next, op) in std::iter::zip(b.operands[1..b.operands.len()].iter(), b.operators.iter()) {
-            let next = self.expect_number(next, op.line, op.col_start, op.col_end)?;
-            match op.t {
-                Plus => result = result + next,
-                Minus => result = result - next,
-                Star => result = result * next,
-                Slash => {
-                    result = (result / next).map_err(|msg| Error {
-                        special: None, msg, line: op.line, col_end: op.col_end, col_start: op.col_start
-                    })?;
+            let next = self.expr(next)?;
+            match (result, next) {
+                (Val::Num(a), Val::Num(b)) => match op.t {
+                    Plus => result = Val::Num(a + b),
+                    Minus => result = Val::Num(a - b),
+                    Star => result = Val::Num(a * b),
+                    Slash => {
+                        result = (a / b)
+                            .map(|v| Val::Num(v))
+                            .map_err(|msg| Error {
+                            special: None, msg, line: op.line, col_end: op.col_end, col_start: op.col_start
+                        })?;
+                    }
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
+                (a, b) => {
+                    let msg = format!(
+                        "Cannot perform bianary operation '{}' on types {} and {}",
+                        op.lexeme, a.type_as_string(), b.type_as_string()
+                    );
+                    return Err(Error::from(msg, &op, &op));
+                }
             }
         }
-        Ok(Val::Num(result))
+        Ok(result)
     }
     fn negate(&self, n: &Negate) -> Result<Val, Error> {
         match self.expr(&n.value)? {

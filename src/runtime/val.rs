@@ -9,10 +9,21 @@ use crate::parser::statement::{Block, Proc};
 use crate::scanner::tok::Tok;
 use crate::sym::*;
 
+use num_bigint::ToBigInt;
+
 #[derive(Clone, Debug, Copy)]
 pub enum Num {
     Float(f64),
     Int(i64),
+}
+
+impl Num {
+    fn to_sym(&self) -> SymExpr {
+        match self {
+            Num::Int(i) => SymExpr::Z(i.to_bigint().unwrap()),
+            Num::Float(_) => todo!()
+        }
+    }
 }
 
 impl Mul for Num {
@@ -302,7 +313,7 @@ impl Type {
                 other => Err(Self::gen_type_error(&Type::Int, &other.get_type())),
             },
             Self::Sym(SymT::Z) => match v{
-                Val::Num(Num::Int(n)) => Ok(Val::Sym(heap.alloc(HeapVal::Sym(SymExpr::z_from_i64(n))))),
+                Val::Num(Num::Int(n)) => Ok(Val::Sym(heap.alloc(HeapVal::Sym(SymExpr::Z(n.to_bigint().unwrap()))))),
                 other => Err(Self::gen_type_error(&Type::Sym(SymT::Z), &other.get_type()))
             }
             _ => {
