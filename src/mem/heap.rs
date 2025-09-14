@@ -3,8 +3,11 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
 use std::collections::{HashMap, HashSet};
 
-use crate::runtime::val::{Val, Num};
+use crate::runtime::val::{Val, Num, FnVal, Type};
 use crate::sym::SymExpr;
+use crate::parser::expr::Call;
+use crate::runtime::Interpreter;
+use crate::error::Error;
 
 #[derive(Clone, Debug)]
 pub enum HeapVal {
@@ -12,6 +15,7 @@ pub enum HeapVal {
     Arr(Vec<Val>),
     Iter(Iter),
     Sym(SymExpr),
+    Fn(FnVal),
 }
 
 #[derive(Clone, Debug)]
@@ -232,10 +236,8 @@ impl Heap {
                     .join(", ");
                 format!("[{}]", s)
             }
-            // TODO pretty print
-            HeapVal::Iter(_) => String::from("<iter>"),
-
             HeapVal::Sym(s) => s.to_string(),
+            HeapVal::Fn(_) | HeapVal::Iter(_) => unreachable!(),
         }
     }
     pub fn len(&self, id: u64) -> usize {
@@ -245,7 +247,27 @@ impl Heap {
             HeapVal::Str(s) => s.len(),
             HeapVal::Arr(a) => a.len(),
             HeapVal::Iter(iter) => iter.len(self),
+            HeapVal::Fn(f) => f.param_count(),
             HeapVal::Sym(_) => todo!(),
+        }
+    }
+    pub fn call(&self, id: u64, c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        let reader = self.mem.try_read().unwrap();
+        let v = reader.get(&id).unwrap();
+        match v {
+            HeapVal::Fn(f) => f.call(c, i),
+            _ => unreachable!()
+        }
+    }
+    pub fn type_fn(&self, id: u64) -> Type {
+        let reader = self.mem.try_read().unwrap();
+        let v = reader.get(&id).unwrap();
+        match v {
+            HeapVal::Fn(FnVal { params, return_t, ..}) => {
+                let param_t: Vec<Type> = params.iter().map(|(_, t)| t.clone()).collect();
+                Type::Fn(param_t, Box::new(return_t.clone()))
+            }
+            _ => unreachable!()
         }
     }
     pub fn alloc(&self, val: HeapVal) -> u64 {

@@ -43,8 +43,8 @@ impl<'a> Env {
             Ok(())
         }
     }
-    pub fn put(&self, i: String, val: Val) {
-        self.mp.lock().unwrap().insert(i, (val.get_type(), val));
+    pub fn put(&self, i: String, val: Val, h: &Heap) {
+        self.mp.lock().unwrap().insert(i, (val.get_type(h), val));
     }
     pub fn set(&self, i: Tok, val: Val, heap: &Heap) -> Result<(), Error> {
         let contains = self.mp.lock().unwrap().contains_key(&i.lexeme);

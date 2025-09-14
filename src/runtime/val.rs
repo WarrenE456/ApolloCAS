@@ -2,7 +2,6 @@ use std::ops::{Mul, Div, Add, Sub};
 
 use crate::mem::heap::{Heap, HeapVal};
 use crate::runtime::{Interpreter, builtin::BuiltIn};
-use crate::parser::expr::Expr;
 use crate::error::{Error, Special};
 use crate::parser::expr::{Index, Call};
 use crate::parser::statement::{Block, Fn};
@@ -99,7 +98,7 @@ pub enum Val {
     BuiltIn(BuiltIn),
     Bool(bool),
     Unit,
-    Fn(FnVal),
+    Fn(u64),
     Str(u64),
     Arr(u64),
     Char(u8),
@@ -137,16 +136,15 @@ impl Val {
             _ => unreachable!()
         }
     }
-    pub fn get_type(&self) -> Type {
+    pub fn get_type(&self, h: &Heap) -> Type {
         match self {
             Val::Num(Num::Int(_)) => Type::Int,
             Val::Num(Num::Float(_)) => Type::Float,
             Val::BuiltIn(_) => Type::BuiltIn,
             Val::Unit => Type::Unit,
             Val::Bool(_) => Type::Bool,
-            Val::Fn(FnVal { params, return_t, ..}) => {
-                let param_t: Vec<Type> = params.iter().map(|(_, t)| t.clone()).collect();
-                Type::Fn(param_t, Box::new(return_t.clone()))
+            Val::Fn(id) => {
+                h.type_fn(*id)
             }
             Val::Iter(_) => Type::Iter,
             Val::Str(_) => Type::Str,
@@ -155,8 +153,8 @@ impl Val {
             Val::Sym(_) => Type::Sym(SymT::Any),
         }
     }
-    pub fn type_as_string(&self) -> String {
-        self.get_type().to_string()
+    pub fn type_as_string(&self, h: &Heap) -> String {
+        self.get_type(h).to_string()
     }
     fn gen_out_of_range_error(index: &Index, idx: usize, len: usize) -> Error {
         let msg = format!("Index out of bounds. Indexed location {} with object of length {}.", idx, len);
@@ -190,7 +188,7 @@ impl Val {
                             Ok(Val::Unit)
                         }
                         other => {
-                            let msg = format!("Attempt to set string element to non-Char value of type {}.", other.type_as_string());
+                            let msg = format!("Attempt to set string element to non-Char value of type {}.", other.type_as_string(h));
                             Err(Error { special: None,
                                 msg, col_start: index.lb.col_start, col_end: index.rb.col_end, line: index.lb.line
                             })
@@ -201,7 +199,7 @@ impl Val {
                 };
             }
             other => {
-                let msg = format!("Attempt to index into a {}.", other.type_as_string());
+                let msg = format!("Attempt to index into a {}.", other.type_as_string(h));
                 Err(Error { special: None,
                     msg, line: index.lb.line, col_end: index.rb.col_end, col_start: index.lb.col_start
                 })
@@ -294,25 +292,25 @@ impl Type {
     fn gen_type_error(expected: &Type, found: &Type) -> String {
         format!("Expected type {} but found {}.", expected.to_string(), found.to_string())
     }
-    pub fn coerce(&self, v: Val, heap: &Heap) -> Result<Val, String> {
+    pub fn coerce(&self, v: Val, h: &Heap) -> Result<Val, String> {
         match self {
             Self::Any | Self::Auto => Ok(v),
             Self::Float => match v {
                 Val::Num(Num::Float(_)) => Ok(v),
                 Val::Num(Num::Int(n)) => Ok(Val::Num(Num::Float(n as f64))),
-                other => Err(Self::gen_type_error(&Type::Float, &other.get_type()))
+                other => Err(Self::gen_type_error(&Type::Float, &other.get_type(h)))
             },
             Self::Int => match v {
                 Val::Num(Num::Float(f)) => Ok(Val::Num(Num::Int(f as i64))),
                 Val::Num(Num::Int(_)) => Ok(v),
-                other => Err(Self::gen_type_error(&Type::Int, &other.get_type())),
+                other => Err(Self::gen_type_error(&Type::Int, &other.get_type(h))),
             },
             Self::Sym(SymT::Z) => match v{
-                Val::Num(Num::Int(n)) => Ok(Val::Sym(heap.alloc(HeapVal::Sym(SymExpr::Z(n.to_bigint().unwrap()))))),
-                other => Err(Self::gen_type_error(&Type::Sym(SymT::Z), &other.get_type()))
+                Val::Num(Num::Int(n)) => Ok(Val::Sym(h.alloc(HeapVal::Sym(SymExpr::Z(n.to_bigint().unwrap()))))),
+                other => Err(Self::gen_type_error(&Type::Sym(SymT::Z), &other.get_type(h)))
             }
             _ => {
-                let other = v.get_type();
+                let other = v.get_type(h);
                 if other == *self {
                     Ok(v)
                 } else {
@@ -325,9 +323,9 @@ impl Type {
 
 #[derive(Clone, Debug)]
 pub struct FnVal {
-    params: Vec<(Tok, Type)>,
-    return_t: Type,
-    body: Block,
+    pub params: Vec<(Tok, Type)>,
+    pub return_t: Type,
+    pub body: Block,
 }
 
 impl FnVal {
@@ -352,7 +350,7 @@ impl FnVal {
                     msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line 
                 }
             })?;
-            scope.env.put(identifier.lexeme.clone(), val);
+            scope.env.put(identifier.lexeme.clone(), val, &i.heap);
         }
 
         match scope.block(&self.body) {
@@ -379,6 +377,9 @@ impl FnVal {
             }
             Err(e) => Err(e),
         }
+    }
+    pub fn param_count(&self) -> usize {
+        self.params.len()
     }
 }
 

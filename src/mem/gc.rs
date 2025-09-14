@@ -22,6 +22,7 @@ impl<'a> GC {
             mp.iter().for_each(|(_, v)| match v {
                 (_,Val::Arr(addr)) => self.heap.mark(*addr),
                 (_,Val::Str(addr)) => self.heap.mark(*addr),
+                (_,Val::Fn(addr)) => self.heap.mark(*addr),
                 (_,Val::Iter(addr)) => {
                     self.heap.mark(*addr);
                     self.heap.get(*addr).map(|hv| match hv {

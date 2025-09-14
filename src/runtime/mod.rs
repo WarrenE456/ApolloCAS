@@ -83,7 +83,7 @@ impl<'a> Interpreter {
                 (a, b) => {
                     let msg = format!(
                         "Cannot perform bianary operation '{}' on types {} and {}",
-                        op.lexeme, a.type_as_string(), b.type_as_string()
+                        op.lexeme, a.type_as_string(&self.heap), b.type_as_string(&self.heap)
                     );
                     return Err(Error::from(msg, &op, &op));
                 }
@@ -97,7 +97,7 @@ impl<'a> Interpreter {
                 Ok(Val::Num(n * Num::Int(-1)))
             }
             a => Err(Error { special: None,
-                msg: format!("Attempt to negate value of type {}.", a.type_as_string()),
+                msg: format!("Attempt to negate value of type {}.", a.type_as_string(&self.heap)),
                 line: n.minus.line,
                 col_end: n.minus.col_end,
                 col_start: n.minus.col_start
@@ -112,14 +112,14 @@ impl<'a> Interpreter {
         let f = self.env.get(&c.identifier)?;
         match f {
             Val::Fn(p) => {
-                p.call(c, self)
+                self.heap.call(p, c,self)
             }
             other => {
                 let col_start = c.identifier.col_start;
                 let col_end = c.identifier.col_end;
                 let line = c.identifier.line;
                 return Err(Error { special: None,
-                    msg: format!("Attempt to use function calling notation on a {}.", other.type_as_string()), col_start, col_end, line
+                    msg: format!("Attempt to use function calling notation on a {}.", other.type_as_string(&self.heap)), col_start, col_end, line
                 });
             }
         }
@@ -140,7 +140,7 @@ impl<'a> Interpreter {
             })),
             _ => {
                 let msg = format!("Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers.",
-                      base.type_as_string(), power.type_as_string()
+                      base.type_as_string(&self.heap), power.type_as_string(&self.heap)
                 );
                 Err(Error { special: None, msg, col_start: e.op.col_start, col_end: e.op.col_end, line: e.op.line })
             }
@@ -193,10 +193,10 @@ impl<'a> Interpreter {
                     }
                 }
                 (a, b) => {
-                    if a.get_type() == b.get_type() {
+                    if a.get_type(&self.heap) == b.get_type(&self.heap) {
                         let msg = format!(
                             "Attempt to compare values of type {}.",
-                            a.type_as_string()
+                            a.type_as_string(&self.heap)
                         );
                         return Err(Error { special: None,
                             msg, line: op.line, col_start: op.col_start, col_end: op.col_end
@@ -221,7 +221,7 @@ impl<'a> Interpreter {
             (a, b) => {
                 let msg = format!(
                     "Attempt to 'or' types {} and {}. This can only be done with Bools.",
-                    a.type_as_string(), b.type_as_string(),
+                    a.type_as_string(&self.heap), b.type_as_string(&self.heap),
                 );
                 return Err(Error { special: None,
                     msg, line: o.op.line, col_start: o.op.col_start, col_end: o.op.col_end,
@@ -237,7 +237,7 @@ impl<'a> Interpreter {
             (l, r) => {
                 let msg = format!(
                     "Attempt to 'or' types {} and {}. This can only be done with Bools.",
-                    l.type_as_string(), r.type_as_string(),
+                    l.type_as_string(&self.heap), r.type_as_string(&self.heap),
                 );
                 return Err(Error { special: None,
                     msg, line: a.op.line, col_start: a.op.col_start, col_end: a.op.col_end
@@ -257,7 +257,7 @@ impl<'a> Interpreter {
         match self.expr(&i.index)? {
             Val::Num(Num::Int(n)) => Ok(n as usize),
             other => {
-                let msg = format!("Attempted to use value of type {} as an index. Index must be an Int.", other.type_as_string());
+                let msg = format!("Attempted to use value of type {} as an index. Index must be an Int.", other.type_as_string(&self.heap));
                 return Err(Error{ special: None,
                     msg, line: i.rb.line, col_start: i.lb.col_start, col_end: i.rb.col_end
                 })
@@ -332,7 +332,7 @@ impl<'a> Interpreter {
     }
     pub fn eval_expr_at(&self, e: &Expr, var_name: &str, var: f64) -> Result<Val, Error> {
         let var = Val::Num(Num::Float(var));
-        self.env.put(var_name.to_string(), var);
+        self.env.put(var_name.to_string(), var, &self.heap);
         self.expr(e)
     }
     fn var(&self, a: &Var) -> Result<(), Error> {
@@ -352,7 +352,7 @@ impl<'a> Interpreter {
             })?
         };
         let t = if Type::Auto == a.t {
-            val.get_type()
+            val.get_type(&self.heap)
         } else {
             a.t.clone()
         };
@@ -380,7 +380,7 @@ impl<'a> Interpreter {
                 }
             }
             a => {
-                let msg = format!("Attempt to use a {} as the condition of an if statement, expected Bool.", a.type_as_string());
+                let msg = format!("Attempt to use a {} as the condition of an if statement, expected Bool.", a.type_as_string(&self.heap));
                 return Err(Error { special: None,
                     msg, col_start: i.eif.col_start, col_end: i.eif.col_end, line: i.eif.line
                 })
@@ -411,7 +411,7 @@ impl<'a> Interpreter {
                     }
                 }
                 a => {
-                    let msg = format!("Attempt to use a {} as the condition of an while statement, expected Bool.", a.type_as_string());
+                    let msg = format!("Attempt to use a {} as the condition of an while statement, expected Bool.", a.type_as_string(&self.heap));
                     return Err(Error { special: None,
                         msg, col_start: w.hwile.col_start, col_end: w.hwile.col_end, line: w.hwile.line
                     })
@@ -421,7 +421,9 @@ impl<'a> Interpreter {
             Ok(())
     }
     fn _fn(&self, p: Fn) -> Result<(), Error> {
-        self.env.def(p.name.clone(), Val::Fn(FnVal::from(p)), Type::Any)
+        let name = p.name.clone();
+        let addr = self.heap.alloc(HeapVal::Fn(FnVal::from(p)));
+        self.env.def(name, Val::Fn(addr), Type::Any)
     }
     fn set_index(&self, s: &SetIndex) -> Result<(), Error> {
         self.expr(&s.index.expr)?
@@ -434,7 +436,7 @@ impl<'a> Interpreter {
             Val::Str(addr) => addr,
             Val::Iter(i) => i,
             other => {
-                let msg = format!("Attempt to iterate over a {}.", other.type_as_string());
+                let msg = format!("Attempt to iterate over a {}.", other.type_as_string(&self.heap));
                 return Err(Error { special: None, msg,
                     col_start: f.fro.col_start, col_end: f.fro.col_end, line: f.fro.line
                 });
@@ -443,7 +445,7 @@ impl<'a> Interpreter {
         self.heap.add_pin(addr);
         while let Some(v) = self.heap.next_iter(addr) {
             let for_scope = Interpreter::from(self);
-            for_scope.env.put(f.identifier.lexeme.clone(), v);
+            for_scope.env.put(f.identifier.lexeme.clone(), v, &self.heap);
             for_scope.block(&f.body)?;
         }
         self.heap.rm_pin(addr);  

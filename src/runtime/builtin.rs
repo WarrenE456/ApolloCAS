@@ -107,7 +107,7 @@ impl BuiltIn {
                 (a, b) => {
                     let msg = format!(
                         "Attempt take the log of a {} with the base of a {}. Both should be numbers.",
-                        a.type_as_string(), b.type_as_string(), 
+                        a.type_as_string(&i.heap), b.type_as_string(&i.heap), 
                     );
                     Err(Self::gen_error(msg, c))
                 }
@@ -118,7 +118,7 @@ impl BuiltIn {
             match a {
                 Val::Num(a) => Ok(Val::Num(Num::Float(a.to_float().log10()))),
                 _ => {
-                    Err(Self::gen_error(format!("Can't take the log of a {}.", a.type_as_string()), c))
+                    Err(Self::gen_error(format!("Can't take the log of a {}.", a.type_as_string(&i.heap)), c))
                 },
             }
         }
@@ -151,7 +151,7 @@ impl BuiltIn {
                 },
                 _ => {
                     Err(Self::gen_error(
-                        format!("Can't take the {} of a {}.", self.t.to_string(), a.type_as_string()), &c
+                        format!("Can't take the {} of a {}.", self.t.to_string(), a.type_as_string(&i.heap)), &c
                     ))
                 },
             }
@@ -173,7 +173,7 @@ impl BuiltIn {
                     special: Some(Special::Exit(n as i32)), col_start: 0, col_end: 0, line: 0, msg: "".into()
                 }),
                 other => {
-                    let msg = format!("Attempt to call the exit function with a {}. Expected an Int.", other.type_as_string());
+                    let msg = format!("Attempt to call the exit function with a {}. Expected an Int.", other.type_as_string(&i.heap));
                     Err(Error {
                         special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
                     })
@@ -231,13 +231,13 @@ impl BuiltIn {
                 match i.expr(&c.args[1])? {
                     Val::Char(c) => i.heap.push_str(addr, c),
                     other => {
-                        let msg = format!("Attempt to push a non-Char value of type {} to a Str.", other.type_as_string());
+                        let msg = format!("Attempt to push a non-Char value of type {} to a Str.", other.type_as_string(&i.heap));
                         return Err(Error::from(msg, &c.identifier, &c.rparen));
                     }
                 }
             }
             other => {
-                let msg = format!("Attempt to push into a value of type {}.", other.type_as_string());
+                let msg = format!("Attempt to push into a value of type {}.", other.type_as_string(&i.heap));
                 return Err(Error::from(msg, &c.identifier, &c.rparen));
             }
         }
@@ -256,7 +256,7 @@ impl BuiltIn {
                 Ok(i.heap.pop_arr(addr).unwrap_or(Val::Unit))
             }
             other => {
-                let msg = format!("Attempt to pop from value of type {}.", other.type_as_string());
+                let msg = format!("Attempt to pop from value of type {}.", other.type_as_string(&i.heap));
                 Err(Error::from(msg, &c.identifier, &c.rparen))
             }
         }
@@ -310,10 +310,11 @@ impl BuiltIn {
             match i.expr(&c.args[0])? {
                 Val::Str(s) => Ok(Val::Num(Num::Int(i.heap.len(s) as i64))),
                 Val::Arr(a) => Ok(Val::Num(Num::Int(i.heap.len(a) as i64))),
+                Val::Fn(f) => Ok(Val::Num(Num::Int(i.heap.len(f) as i64))),
                 other => {
                     let msg = format!(
                         "'len' expects an argument of type Str or Arr, but found value of type {}.",
-                        other.type_as_string()
+                        other.type_as_string(&i.heap)
                     );
                     Err(Error::from(msg, &c.identifier, &c.rparen))
                 }
@@ -339,7 +340,7 @@ impl BuiltIn {
             let msg = String::from("'type' expects one argument.");
             Err(Error::from(msg, &c.identifier, &c.rparen))
         } else {
-            let typename = HeapVal::Str(i.expr(&c.args[0])?.type_as_string().into());
+            let typename = HeapVal::Str(i.expr(&c.args[0])?.type_as_string(&i.heap).into());
             let addr = i.heap.alloc(typename);
             Ok(Val::Str(addr))
         }
@@ -357,7 +358,7 @@ impl BuiltIn {
                 }
                 Val::Iter(i) => Ok(Val::Iter(i)),
                 other => {
-                    let msg = format!("'iter' cannot turn type {} into an iterator.", other.type_as_string());
+                    let msg = format!("'iter' cannot turn type {} into an iterator.", other.type_as_string(&i.heap));
                     Err(Error::from(msg, &c.identifier, &c.rparen))
                 }
             }
@@ -371,7 +372,7 @@ impl BuiltIn {
             match i.expr(&c.args[0])? {
                 Val::Iter(iter) => Ok(i.heap.next_iter(iter).unwrap_or(Val::Unit)),
                 other => {
-                    let msg = format!("'next' expects an  Iter, but found {}.", other.type_as_string());
+                    let msg = format!("'next' expects an  Iter, but found {}.", other.type_as_string(&i.heap));
                     Err(Error::from(msg, &c.identifier, &c.rparen))
                 }
             }
