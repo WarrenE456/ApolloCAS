@@ -7,7 +7,7 @@ pub enum TokType {
     Lesser, Greater, LesserEqual, GreaterEqual, Bang, BangEqual, Arrow, Minus,
     Plus, PlusPlus, LParen, Unit,
     // Fixed number of characters
-    Let, Or, And, If, Else, While, Break, Continue, Set, True, False, Proc, Return, In, For,
+    Let, Or, And, If, Else, While, Break, Continue, Set, True, False, Fn, Return, In, For,
     AnyT, IntT, FloatT, FnT, BuiltInT, BoolT, UnitT, StrT, ArrT, CharT, ZT, SymAnyT, SymbolT, IterT,
     // Variable number of characters
     Float, Int, Identifier, Str, Char,

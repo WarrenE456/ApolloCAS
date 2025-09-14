@@ -9,12 +9,11 @@ pub enum Statement {
     Var(Var),
     Set(Set),
     SetIndex(SetIndex),
-    Def(Def),
     Expr(Expr),
     Block(Block),
     If(If),
     While(While),
-    Proc(Proc),
+    Fn(Fn),
     Break(Error),
     Continue(Error),
     Return(Error),
@@ -39,14 +38,6 @@ pub struct Set {
 #[derive(Debug, Clone)]
 pub struct SetIndex {
     pub index: Index,
-    pub op: Tok,
-    pub value: Expr,
-}
-
-#[derive(Debug, Clone)]
-pub struct Def {
-    pub identifier: Tok,
-    pub args: Vec<String>,
     pub op: Tok,
     pub value: Expr,
 }
@@ -80,7 +71,7 @@ pub struct While {
 }
 
 #[derive(Debug, Clone)]
-pub struct Proc {
+pub struct Fn {
     pub name: Tok,
     pub params: Vec<(Tok, Type)>,
     pub return_t: Type,

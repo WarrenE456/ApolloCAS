@@ -6,7 +6,7 @@ use crate::parser::statement::*;
 use crate::scanner::tok::{Tok, TokType};
 use crate::mem::env::Env;
 use crate::mem::heap::{Heap, HeapVal, HeapIter};
-use crate::runtime::val::{Val, ProcVal};
+use crate::runtime::val::{Val, FnVal};
 use crate::parser::expr::*;
 use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
 use crate::sym::SymExpr;
@@ -105,34 +105,14 @@ impl<'a> Interpreter {
         }
     }
     fn call(&self, c: &Call) -> Result<Val, Error> {
-
         if let Some(built_in) = BuiltIn::is_builtin(&c.identifier.lexeme) {
             return built_in.call(c, self);
         }
 
         let f = self.env.get(&c.identifier)?;
         match f {
-            Val::Proc(p) => {
+            Val::Fn(p) => {
                 p.call(c, self)
-            }
-            Val::Function(params, body) => {
-                if c.args.len() != params.len() {
-                    let col_start = c.identifier.col_start;
-                    let col_end = c.rparen.col_end;
-                    let line = c.identifier.line;
-                    let msg = format!(
-                        "Attempted to call function '{}' that takes {} arguments with {}.",
-                        c.identifier.lexeme, params.len(), c.args.len()
-                    );
-                    return Err(
-                        Error { special: None, msg, col_start, col_end, line }
-                    );
-                }
-                let scope = Interpreter::from(self);
-                for (i, arg) in c.args.iter().enumerate() {
-                    scope.env.put(params[i].clone(), self.expr(arg)?);
-                }
-                scope.expr(&body)
             }
             other => {
                 let col_start = c.identifier.col_start;
@@ -382,14 +362,6 @@ impl<'a> Interpreter {
         let val = self.expr(&s.value)?;
         self.env.set(s.identifier.clone(), val.clone(), &self.heap)
     }
-    fn def(&self, d: &Def) -> Result<(), Error> {
-        self.env.def(
-            d.identifier.clone(),
-            Val::Function(d.args.clone(), d.value.clone()),
-            Type::Fn
-        )?;
-        Ok(())
-    }
     fn block(&self, b: &Block) -> Result<(), Error> {
         for statement in b.statements.iter() {
             self.interpret(statement)?;
@@ -448,8 +420,8 @@ impl<'a> Interpreter {
         }
             Ok(())
     }
-    fn proc(&self, p: Proc) -> Result<(), Error> {
-        self.env.def(p.name.clone(), Val::Proc(ProcVal::from(p)), Type::Any)
+    fn _fn(&self, p: Fn) -> Result<(), Error> {
+        self.env.def(p.name.clone(), Val::Fn(FnVal::from(p)), Type::Any)
     }
     fn set_index(&self, s: &SetIndex) -> Result<(), Error> {
         self.expr(&s.index.expr)?
@@ -484,7 +456,6 @@ impl<'a> Interpreter {
             Var(a) => {self.var(a)?; Ok(None)}
             Set(s) => {self.set(s)?; Ok(None)}
             SetIndex(s) => {self.set_index(s)?; Ok(None)}
-            Def(d) => {self.def(d)?; Ok(None)}
             If(i) => {self.eif(i)?; Ok(None)}
             Block(b) => {
                 let inner_scope = Self::from(self);
@@ -492,7 +463,7 @@ impl<'a> Interpreter {
                 Ok(None)
             },
             While(w) => {self.hwile(w)?; Ok(None)}
-            Proc(p) => {self.proc(p.clone())?; Ok(None)}
+            Fn(p) => {self._fn(p.clone())?; Ok(None)}
             For(f) => {self._for(f)?; Ok(None)}
             Break(e) => Err(e.clone()),
             Continue(e) => Err(e.clone()),

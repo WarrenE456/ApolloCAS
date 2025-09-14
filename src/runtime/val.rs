@@ -5,7 +5,7 @@ use crate::runtime::{Interpreter, builtin::BuiltIn};
 use crate::parser::expr::Expr;
 use crate::error::{Error, Special};
 use crate::parser::expr::{Index, Call};
-use crate::parser::statement::{Block, Proc};
+use crate::parser::statement::{Block, Fn};
 use crate::scanner::tok::Tok;
 use crate::sym::*;
 
@@ -96,11 +96,10 @@ impl Num {
 #[derive(Clone, Debug)]
 pub enum Val {
     Num(Num),
-    Function(Vec<String>, Expr),
     BuiltIn(BuiltIn),
     Bool(bool),
     Unit,
-    Proc(ProcVal),
+    Fn(FnVal),
     Str(u64),
     Arr(u64),
     Char(u8),
@@ -112,13 +111,12 @@ impl Val {
     pub fn to_string(&self, h: &Heap) -> String {
         match self {
             Val::Num(n) => n.to_string(),
-            Val::Function(_, e) => e.to_string(),
             Val::BuiltIn(b) => b.to_string(),
             Val::Unit => String::from("{}"),
             Val::Bool(b) => String::from(if *b { "true" } else { "false" }),
 
             // TODO pretty printing
-            Val::Proc(_) => String::from("<procedure>"),
+            Val::Fn(_) => String::from("<fn>"),
             Val::Iter(_) => String::from("<iter>"),
 
             Val::Str(addr) => h.to_string(*addr),
@@ -143,13 +141,12 @@ impl Val {
         match self {
             Val::Num(Num::Int(_)) => Type::Int,
             Val::Num(Num::Float(_)) => Type::Float,
-            Val::Function(..) => Type::Fn,
             Val::BuiltIn(_) => Type::BuiltIn,
             Val::Unit => Type::Unit,
             Val::Bool(_) => Type::Bool,
-            Val::Proc(ProcVal { params, return_t, ..}) => {
+            Val::Fn(FnVal { params, return_t, ..}) => {
                 let param_t: Vec<Type> = params.iter().map(|(_, t)| t.clone()).collect();
-                Type::Proc(param_t, Box::new(return_t.clone()))
+                Type::Fn(param_t, Box::new(return_t.clone()))
             }
             Val::Iter(_) => Type::Iter,
             Val::Str(_) => Type::Str,
@@ -260,7 +257,6 @@ pub enum Type {
     Any,
     Int,
     Float,
-    Fn,
     BuiltIn,
     Bool,
     Unit,
@@ -269,7 +265,7 @@ pub enum Type {
     Char,
     Auto,
     Iter,
-    Proc(Vec<Type>, Box<Type>),
+    Fn(Vec<Type>, Box<Type>),
     Sym(SymT),
 }
 
@@ -280,7 +276,6 @@ impl Type {
             Any => String::from("Any"),
             Int => String::from("Int"),
             Float => String::from("Float"),
-            Fn => String::from("Fn"),
             BuiltIn => String::from("BuiltIn"),
             Bool => String::from("Bool"),
             Unit => String::from("Unit"),
@@ -291,7 +286,7 @@ impl Type {
             Sym(SymT::Z) => String::from("Z"),
             Sym(SymT::Any) => String::from("Sym"),
             Sym(SymT::Symbol) => String::from("Symbol"),
-            Proc(param, ret) =>
+            Fn(param, ret) =>
                 format!("({} -> {})", param.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "), ret.to_string()),
             Iter => String::from("Iter"),
         }
@@ -329,19 +324,19 @@ impl Type {
 }
 
 #[derive(Clone, Debug)]
-pub struct ProcVal {
+pub struct FnVal {
     params: Vec<(Tok, Type)>,
     return_t: Type,
     body: Block,
 }
 
-impl ProcVal {
-    pub fn from(p: Proc) -> Self {
+impl FnVal {
+    pub fn from(p: Fn) -> Self {
         Self { params: p.params, return_t: p.return_t, body: p.body }
     }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() != self.params.len() {
-            let msg = format!("Procedure expected {} arguments but received {}.", self.params.len(), c.args.len());
+            let msg = format!("Function expected {} arguments but received {}.", self.params.len(), c.args.len());
             return Err(Error {
                 special: None, msg, col_start: c.identifier.col_start, col_end: c.rparen.col_end, line: c.identifier.line
             });
@@ -361,13 +356,21 @@ impl ProcVal {
         }
 
         match scope.block(&self.body) {
-            Ok(_) => Ok(Val::Unit),
+            Ok(_) => {
+                if self.return_t == Type::Unit || self.return_t == Type::Any {
+                    Ok(Val::Unit)
+                } else {
+                    let msg = format!(
+                        "Expected function to return value of type {}, but there was no return.",
+                        self.return_t.to_string()
+                    );
+                    Err(Error::from(msg, &c.identifier, &c.rparen))
+                }
+            }
             Err(Error { special: Some(Special::Return(e, r)), .. }) => {
                 if let Some(e) = e {
                     let return_val = self.return_t.coerce(scope.expr(&e)?, &i.heap).map_err(|msg| {
-                        Error { special: None,
-                            msg, col_start: r.col_start, col_end: r.col_end, line: r.line
-                        }
+                        Error::from(msg, &r, &r)
                     })?;
                     Ok(return_val)
                 } else {

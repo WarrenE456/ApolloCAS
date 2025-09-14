@@ -2,20 +2,20 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> ( expr | command | var | def | block | if | while | break | cont | set | proc |
+* statement -> ( expr | command | var | def | block | if | while | break | cont | set | _fn |
                  return | for )
 * var -> 'let' typed '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * set -> 'set' IDENTIFIER (('[' expr ']')* '[' expr ']')? '=' expr
 * if -> 'if' expr block ('else' (block | if))?
 * while -> 'while' expr block
-* proc -> 'proc' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
+* _fn -> '_fn' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
 * for -> 'for' IDENTIFIER 'in' expr block
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
-* type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t
+* type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | fn_t
 * typed -> IDENTIFIER (':' type)?
-* proc_t -> '(' type ( ',' type )* '->' type ')'
+* fn_t -> '(' type ( ',' type )* '->' type ')'
 *
 * expr -> '$' SYMEXPR | or
 * or -> comp ("or" comp)*
@@ -288,8 +288,8 @@ impl Parser {
             self.or()
         }
     }
-    // proc_t -> '(' type ( ',' type )* '->' type ')'
-    fn proc_t(&self) -> Result<Type, Error> {
+    // fn_t -> '(' type ( ',' type )* '->' type ')'
+    fn fn_t(&self) -> Result<Type, Error> {
         let mut param_t = vec![self.parse_type()?];
         while self.is_match(TokType::Comma) {
             let _ = self.advance();
@@ -300,9 +300,9 @@ impl Parser {
         let return_t = self.parse_type()?;
         self.expect(TokType::RParen, String::from("Expected a closing parenthesis."))?;
         let _ = self.advance();
-        Ok(Type::Proc(param_t, Box::new(return_t)))
+        Ok(Type::Fn(param_t, Box::new(return_t)))
     }
-    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | proc_t | *T...
+    // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | fn_t | *T...
     fn parse_type(&self) -> Result<Type, Error> {
         let next = self.advance();
         use TokType::*;
@@ -310,7 +310,6 @@ impl Parser {
             AnyT => Ok(Type::Any),
             IntT => Ok(Type::Int),
             FloatT => Ok(Type::Float),
-            FnT => Ok(Type::Fn),
             BuiltInT => Ok(Type::BuiltIn),
             BoolT => Ok(Type::Bool),
             UnitT => Ok(Type::Unit),
@@ -321,7 +320,7 @@ impl Parser {
             SymAnyT => Ok(Type::Sym(SymT::Any)),
             SymbolT => Ok(Type::Sym(SymT::Symbol)),
             IterT => Ok(Type::Iter),
-            LParen => self.proc_t(),
+            LParen => self.fn_t(),
             _ => {
                 let msg = String::from("Expected type here.");
                 Err(Error { special: None,
@@ -447,10 +446,10 @@ impl Parser {
         let body = Box::new(Statement::Block(self.block()?));
         Ok(While { hwile, cond, body })
     }
-    // proc -> 'proc' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
-    fn proc(&self) -> Result<Proc, Error> {
+    // _fn -> '_fn' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
+    fn _fn(&self) -> Result<Fn, Error> {
         let _ = self.advance();
-        self.expect(TokType::Identifier, String::from("Expected procedure name."))?;
+        self.expect(TokType::Identifier, String::from("Expected _fnedure name."))?;
         let name = self.advance().clone();
         self.expect(TokType::LParen, String::from("Expected opening parenthesis"))?;
         let _ = self.advance();
@@ -495,7 +494,7 @@ impl Parser {
 
         let body = self.block()?;
 
-        Ok(Proc { name, params, return_t, body })
+        Ok(Fn { name, params, return_t, body })
     }
     fn _break(&self) -> Error {
         let b = self.advance();
@@ -521,7 +520,7 @@ impl Parser {
         } else {
             None
         };
-        let msg = String::from("Attempt to use return statement outside of procedure.");
+        let msg = String::from("Attempt to use return statement outside of _fnedure.");
         Error {
             msg, special: Some(Special::Return(value, r.clone())), col_start: r.col_start, col_end: r.col_end, line: r.line
         }
@@ -548,7 +547,7 @@ impl Parser {
             TokType::Break => Ok(Statement::Break(self._break())),
             TokType::Continue => Ok(Statement::Continue(self._continue())),
             TokType::Return => Ok(Statement::Return(self._return())),
-            TokType::Proc => self.proc().map(|p| Statement::Proc(p)),
+            TokType::Fn => self._fn().map(|p| Statement::Fn(p)),
             TokType::For => self._for(),
             _ => self.expr().map(|e| Statement::Expr(e)),
         }

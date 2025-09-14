@@ -18,14 +18,13 @@ use mem::gc::GC;
 
 /* TODO
 *
-* fix functions not returning
-* proc heap
+* fn heap
 * copy fn
-* proc as value
+* fn as value
 * ignore newlines inside parenthesis
 * explicit casting
 * polymorphic types
-* proc casting
+* fn casting
 * special characters in strings
 * <c-d> to interupt
 *

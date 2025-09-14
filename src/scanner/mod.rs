@@ -36,7 +36,7 @@ impl<'a> Scanner<'a> {
             (String::from("set"), TokType::Set),
             (String::from("true"), TokType::True),
             (String::from("false"), TokType::False),
-            (String::from("proc"), TokType::Proc),
+            (String::from("fn"), TokType::Fn),
             (String::from("return"), TokType::Return),
             (String::from("in"), TokType::In),
             (String::from("for"), TokType::For),
