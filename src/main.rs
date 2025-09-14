@@ -18,7 +18,7 @@ use mem::gc::GC;
 
 /* TODO
 *
-* operations on symtypes
+* fix functions not returning
 * proc heap
 * copy fn
 * proc as value

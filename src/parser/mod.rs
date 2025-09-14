@@ -320,6 +320,7 @@ impl Parser {
             ZT => Ok(Type::Sym(SymT::Z)),
             SymAnyT => Ok(Type::Sym(SymT::Any)),
             SymbolT => Ok(Type::Sym(SymT::Symbol)),
+            IterT => Ok(Type::Iter),
             LParen => self.proc_t(),
             _ => {
                 let msg = String::from("Expected type here.");

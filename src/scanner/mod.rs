@@ -53,6 +53,7 @@ impl<'a> Scanner<'a> {
             (String::from("Char"), TokType::CharT),
             (String::from("Sym"), TokType::SymAnyT),
             (String::from("Symbol"), TokType::SymbolT),
+            (String::from("Iter"), TokType::IterT),
             (String::from("Z"), TokType::ZT),
         ]);
         Scanner {

@@ -161,7 +161,7 @@ pub struct Negate {
 }
 
 impl Negate {
-    fn negate_sym_expr(symexpr: SymExpr) -> SymExpr {
+    pub fn negate_sym_expr(symexpr: SymExpr) -> SymExpr {
         let neg_one = SymExpr::Z(BigInt::from_biguint(Sign::Minus, BigUint::one()));
         SymExpr::mul(neg_one, symexpr)
     }

@@ -9,6 +9,7 @@ use crate::mem::heap::{Heap, HeapVal, HeapIter};
 use crate::runtime::val::{Val, ProcVal};
 use crate::parser::expr::*;
 use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
+use crate::sym::SymExpr;
 
 use std::sync::Arc;
 
@@ -41,16 +42,6 @@ impl<'a> Interpreter {
             _ => unreachable!(),
         }
     }
-    // TODO remove
-    // fn expect_number(&self, e: &Expr, line: usize, col_start: usize, col_end: usize) -> Result<Num, Error> {
-    //     match self.expr(e)? {
-    //         Val::Num(n) => Ok(n),
-    //         other => {
-    //             let msg = format!("Expected Number but found {}.", other.type_as_string());
-    //             Err(Error { special: None, msg, line, col_start, col_end })
-    //         }
-    //     }
-    // }
     fn binary(&self, b: &Binary) -> Result<Val, Error> {
         use TokType::*;
         let mut result = self.expr(&b.operands.first().unwrap())?;
@@ -69,6 +60,25 @@ impl<'a> Interpreter {
                         })?;
                     }
                     _ => unreachable!(),
+                }
+                (Val::Sym(a), Val::Sym(b)) =>{
+                    // TODO improve efficency
+                    let a = match self.heap.get(a) {
+                        Some(HeapVal::Sym(s)) => s,
+                        _ => unreachable!(),
+                    };
+                    let b = match self.heap.get(b) {
+                        Some(HeapVal::Sym(s)) => s,
+                        _ => unreachable!(),
+                    };
+                    let expr = match op.t {
+                        Plus => SymExpr::add(a, b),
+                        Minus => SymExpr::add(a, Negate::negate_sym_expr(b)),
+                        Star => SymExpr::mul(a, b),
+                        Slash => todo!(),
+                        _ => unreachable!(),
+                    };
+                    result = Val::Sym(self.heap.alloc(HeapVal::Sym(expr)));
                 }
                 (a, b) => {
                     let msg = format!(
@@ -203,13 +213,17 @@ impl<'a> Interpreter {
                     }
                 }
                 (a, b) => {
-                    let msg = format!(
-                        "Attempt to compare types {} and {}.",
-                        a.type_as_string(), b.type_as_string()
-                    );
-                    return Err(Error { special: None,
-                        msg, line: op.line, col_start: op.col_start, col_end: op.col_end
-                    });
+                    if a.get_type() == b.get_type() {
+                        let msg = format!(
+                            "Attempt to compare values of type {}.",
+                            a.type_as_string()
+                        );
+                        return Err(Error { special: None,
+                            msg, line: op.line, col_start: op.col_start, col_end: op.col_end
+                        });
+                    } else {
+                        return Ok(Val::Bool(false));
+                    }
                 }
             };
             if comp_result == false {
