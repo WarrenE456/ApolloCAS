@@ -26,7 +26,6 @@ impl<'a> Scanner<'a> {
     pub fn from(program: &'a [u8], lines: usize) -> Self {
         let keywords = HashMap::from([
             (String::from("let"), TokType::Let),
-            (String::from("def"), TokType::Def),
             (String::from("or"), TokType::Or),
             (String::from("and"), TokType::And),
             (String::from("if"), TokType::If),

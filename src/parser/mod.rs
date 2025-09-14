@@ -402,19 +402,6 @@ impl Parser {
 
         Ok(args)
     }
-    // def -> 'def' IDENTIFIER params_list '=' expr
-    fn def(&self) -> Result<Def, Error> {
-        assert_eq!(self.advance().t, TokType::Def);
-        self.expect(TokType::Identifier, String::from("Expected a function name here."))?;
-        let identifier = self.advance().clone();
-
-        let args = self.params_list()?;
-
-        self.expect(TokType::Equal, String::from("Expected the assignment operator '=' after the variable name."))?;
-        let op = self.advance().clone();
-
-        Ok(Def { identifier, args, op, value: self.expr()? })
-    }
     // block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
     fn block(&self) -> Result<Block, Error> {
         self.skip_new_lines();
@@ -552,11 +539,9 @@ impl Parser {
     }
     // TODO: command
     fn statement(&self) -> Result<Statement, Error> {
-        // TODO clean up
         match self.peek().t {
             TokType::Let => self.var().map(|a| Statement::Var(a)),
             TokType::Set => self.set(),
-            TokType::Def => self.def().map(|d| Statement::Def(d)),
             TokType::LCurly => self.block().map(|b| Statement::Block(b)),
             TokType::If => self.eif().map(|i| Statement::If(i)),
             TokType::While => self.hwile().map(|w| Statement::While(w)),
