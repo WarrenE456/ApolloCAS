@@ -17,7 +17,6 @@ use mem::gc::GC;
 
 /* TODO
 *
-* fn heap
 * copy fn
 * fn as value
 * ignore newlines inside parenthesis

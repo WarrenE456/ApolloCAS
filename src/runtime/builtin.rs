@@ -322,18 +322,24 @@ impl BuiltIn {
         }
     }
     fn copy(c: &Call, i: &Interpreter) -> Result<Val, Error> {
-        // if c.args.len() != 1 {
-        //     let msg = String::from("'copy' expects one argument.");
-        //     Err(Error::from(msg, &c.identifier, &c.rparen))
-        // } else {
-        //     match i.expr(c.args[0])? {
-        //         Val::Str(s) =>
-        //         Val::Arr(a) =>
-        //         Val::
-        //     }
-        //     todo!()
-        // }
-        todo!()
+        if c.args.len() != 1 {
+            let msg = String::from("'copy' expects one argument.");
+            Err(Error::from(msg, &c.identifier, &c.rparen))
+        } else {
+            let mut val = i.expr(&c.args[0])?;
+            match &mut val {
+                Val::Str(addr) 
+                | Val::Arr(addr)
+                | Val::Iter(addr)
+                | Val::Fn(addr) 
+                | Val::Sym(addr) => {
+                    *addr = i.heap.alloc(i.heap.get(*addr).unwrap().clone());
+                }
+                Val::Unit | Val::Char(_) | Val::Num(_)
+                | Val::Bool(_) | Val::BuiltIn(_)        => {}
+            }
+            Ok(val)
+        }
     }
     fn _type(c: &Call, i: &Interpreter) -> Result<Val, Error> {
         if c.args.len() != 1 {
