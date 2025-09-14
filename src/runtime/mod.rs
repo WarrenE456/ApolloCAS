@@ -323,6 +323,7 @@ impl<'a> Interpreter {
             And(a) => self.and(a),
             Arr(a) => self.arr(a),
             Index(i) => self.index(i),
+            Fn(f) => self._fn(f.clone()),
             Sym(dollar, e) => e.to_sym()
                 .map(|se| {
                     Val::Sym(self.heap.alloc(HeapVal::Sym(se.simplify())))
@@ -411,7 +412,10 @@ impl<'a> Interpreter {
                     }
                 }
                 a => {
-                    let msg = format!("Attempt to use a {} as the condition of an while statement, expected Bool.", a.type_as_string(&self.heap));
+                    let msg = format!(
+                        "Attempt to use a {} as the condition of an while statement, expected Bool.",
+                        a.type_as_string(&self.heap)
+                    );
                     return Err(Error { special: None,
                         msg, col_start: w.hwile.col_start, col_end: w.hwile.col_end, line: w.hwile.line
                     })
@@ -420,10 +424,9 @@ impl<'a> Interpreter {
         }
             Ok(())
     }
-    fn _fn(&self, p: Fn) -> Result<(), Error> {
-        let name = p.name.clone();
+    fn _fn(&self, p: Fn) -> Result<Val, Error> {
         let addr = self.heap.alloc(HeapVal::Fn(FnVal::from(p)));
-        self.env.def(name, Val::Fn(addr), Type::Any)
+        Ok(Val::Fn(addr))
     }
     fn set_index(&self, s: &SetIndex) -> Result<(), Error> {
         self.expr(&s.index.expr)?
@@ -465,7 +468,6 @@ impl<'a> Interpreter {
                 Ok(None)
             },
             While(w) => {self.hwile(w)?; Ok(None)}
-            Fn(p) => {self._fn(p.clone())?; Ok(None)}
             For(f) => {self._for(f)?; Ok(None)}
             Break(e) => Err(e.clone()),
             Continue(e) => Err(e.clone()),

@@ -2,14 +2,14 @@
 *
 * program -> '\n'* ((statement | $) '\n'+)+
 *
-* statement -> ( expr | command | var | def | block | if | while | break | cont | set | _fn |
+* statement -> ( expr | command | var | def | block | if | while | break | cont | set |
                  return | for )
+
 * var -> 'let' typed '=' expr
 * def -> 'def' IDENTIFIER params_list '=' expr
 * set -> 'set' IDENTIFIER (('[' expr ']')* '[' expr ']')? '=' expr
 * if -> 'if' expr block ('else' (block | if))?
 * while -> 'while' expr block
-* _fn -> '_fn' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
 * for -> 'for' IDENTIFIER 'in' expr block
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
@@ -17,7 +17,8 @@
 * typed -> IDENTIFIER (':' type)?
 * fn_t -> '(' type ( ',' type )* '->' type ')'
 *
-* expr -> '$' SYMEXPR | or
+* expr -> '$' SYMEXPR | or | _fn
+* _fn -> '_fn' '(' (typed ( ',' typed )*)? ')' ("->" type)? block
 * or -> comp ("or" comp)*
 * and -> or ("and" or)*
 * comp -> concat ((">" | "<" | ">=" | "<=" | "=" | "!=") concat)*
@@ -284,6 +285,9 @@ impl Parser {
         if self.is_match(TokType::Dollar) {
             let dollar = self.advance().clone();
             self.expr().map(|e| Expr::Sym(dollar, Box::new(e)))
+        }
+        else if self.is_match(TokType::Fn) {
+            self._fn().map(|f| Expr::Fn(f))
         } else {
             self.or()
         }
@@ -446,11 +450,10 @@ impl Parser {
         let body = Box::new(Statement::Block(self.block()?));
         Ok(While { hwile, cond, body })
     }
-    // _fn -> '_fn' IDENTIFIER '(' (typed ( ',' typed )*)? ')' ("->" type)? block
+    // _fn -> '_fn' '(' (typed ( ',' typed )*)? ')' ("->" type)? block
     fn _fn(&self) -> Result<Fn, Error> {
         let _ = self.advance();
-        self.expect(TokType::Identifier, String::from("Expected _fnedure name."))?;
-        let name = self.advance().clone();
+
         self.expect(TokType::LParen, String::from("Expected opening parenthesis"))?;
         let _ = self.advance();
 
@@ -494,7 +497,7 @@ impl Parser {
 
         let body = self.block()?;
 
-        Ok(Fn { name, params, return_t, body })
+        Ok(Fn { params, return_t, body })
     }
     fn _break(&self) -> Error {
         let b = self.advance();
@@ -547,7 +550,6 @@ impl Parser {
             TokType::Break => Ok(Statement::Break(self._break())),
             TokType::Continue => Ok(Statement::Continue(self._continue())),
             TokType::Return => Ok(Statement::Return(self._return())),
-            TokType::Fn => self._fn().map(|p| Statement::Fn(p)),
             TokType::For => self._for(),
             _ => self.expr().map(|e| Statement::Expr(e)),
         }

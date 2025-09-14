@@ -3,8 +3,8 @@ use std::ops::{Mul, Div, Add, Sub};
 use crate::mem::heap::{Heap, HeapVal};
 use crate::runtime::{Interpreter, builtin::BuiltIn};
 use crate::error::{Error, Special};
-use crate::parser::expr::{Index, Call};
-use crate::parser::statement::{Block, Fn};
+use crate::parser::expr::{Index, Call, Fn};
+use crate::parser::statement::Block;
 use crate::scanner::tok::Tok;
 use crate::sym::*;
 

@@ -17,13 +17,13 @@ use mem::gc::GC;
 
 /* TODO
 *
-* copy fn
 * fn as value
 * ignore newlines inside parenthesis
 * explicit casting
 * polymorphic types
 * fn casting
 * special characters in strings
+* classes
 * <c-d> to interupt
 *
 */

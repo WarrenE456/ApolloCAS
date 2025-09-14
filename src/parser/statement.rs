@@ -13,7 +13,6 @@ pub enum Statement {
     Block(Block),
     If(If),
     While(While),
-    Fn(Fn),
     Break(Error),
     Continue(Error),
     Return(Error),
@@ -68,12 +67,4 @@ pub struct While {
     pub hwile: Tok,
     pub cond: Expr,
     pub body: Box<Statement>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Fn {
-    pub name: Tok,
-    pub params: Vec<(Tok, Type)>,
-    pub return_t: Type,
-    pub body: Block,
 }

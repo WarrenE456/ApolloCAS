@@ -3,7 +3,7 @@ use crate::sym::num_traits::One;
 
 use crate::runtime::val::Type;
 use crate::scanner::tok::{Tok, TokType};
-use super::statement::Block;
+use super::statement::Bock;
 use crate::sym::*;
 
 #[derive(Debug, Clone)]
@@ -62,7 +62,6 @@ impl Expr {
             Arr(a) => format!("[{}]", a.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
             Index(i) => i.expr.to_string() + &i.index.to_string(),
             Sym(_, e) => e.to_string(),
-            Fn(_) => String::from("<fn def>"),
         }
     }
     pub fn kind_name(&self) -> String {
@@ -87,7 +86,6 @@ impl Expr {
                 _ => format!("binary ('{}')", b.operators[0].lexeme),
             },
             Expr::Sym(_, e) => e.kind_name(),
-            Expr::Fn(_) => String::from("function definition"),
         }
     }
     pub fn to_sym(&self) -> Result<SymExpr, String> {
@@ -219,6 +217,7 @@ pub struct Index {
 
 #[derive(Debug, Clone)]
 pub struct Fn {
+    pub name: Tok,
     pub params: Vec<(Tok, Type)>,
     pub return_t: Type,
     pub body: Block,
