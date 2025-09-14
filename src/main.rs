@@ -7,7 +7,6 @@ pub mod mem;
 pub mod sym;
 
 use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -33,13 +32,11 @@ use mem::gc::GC;
 fn main() {
     let heap = Arc::new(Heap::new());
     let global = Arc::new(RwLock::new(Interpreter::new(heap)));
-    let running = Arc::new(AtomicBool::new(true));
     
     let gc_global = Arc::clone(&global);
-    let gc_running = Arc::clone(&running);
     thread::spawn(move || {
         let gc = GC::new(Arc::clone(&gc_global.read().unwrap().heap));
-        while gc_running.load(Ordering::SeqCst) {
+        loop {
             thread::sleep(Duration::from_millis(2048));
             gc.prime();
             gc.mark(&gc_global.read().unwrap().env);
