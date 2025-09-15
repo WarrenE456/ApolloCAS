@@ -19,9 +19,19 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn from(msg: String, start: &Tok, end: &Tok) -> Self {
+    pub fn from(msg: String, start: &Tok, end: &Tok) -> Error {
         Self { special: None,
             msg, line: start.line, col_start: start.col_start, col_end: end.col_end
+        }
+    }
+    pub fn new_return(expr: Option<Expr>, return_tok: Tok) -> Error {
+        let msg = String::from("Attempt to use return statement outside of function.");
+        Self {
+            msg,
+            col_start: return_tok.col_start,
+            col_end: return_tok.col_end,
+            line: return_tok.line,
+            special: Some(Special::Return(expr, return_tok)),
         }
     }
 }

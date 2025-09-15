@@ -13,12 +13,13 @@
 * for -> 'for' IDENTIFIER 'in' expr block
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
+* inline_ret -> ':' '\n'? expr '\n'
 * type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | fn_t
 * typed -> IDENTIFIER (':' type)?
 * fn_t -> '(' type ( ',' type )* '->' type ')'
 *
 * expr -> '$' SYMEXPR | or | _fn
-* _fn -> '_fn' '(' (typed ( ',' typed )*)? ')' ("->" type)? block
+* _fn -> '_fn' '(' (typed ( ',' typed )*)? ')' ("->" type)? (inline_ret | block)
 * or -> comp ("or" comp)*
 * and -> or ("and" or)*
 * comp -> concat ((">" | "<" | ">=" | "<=" | "=" | "!=") concat)*
@@ -426,6 +427,13 @@ impl Parser {
         
         Ok(Block{ statements })
     }
+    // inline_ret -> : '\n'? expr
+    fn inline_ret(&self) -> Result<Expr, Error> {
+        self.expect(TokType::Colon, String::from("Expected colon before inline return."))?;
+        let _ = self.advance();
+        self.skip_new_lines();
+        self.expr()
+    }
     // if -> 'if' expr block ('else' (block | if))?
     fn eif(&self) -> Result<If, Error> {
         let eif = self.advance().clone();
@@ -450,7 +458,7 @@ impl Parser {
         let body = Box::new(Statement::Block(self.block()?));
         Ok(While { hwile, cond, body })
     }
-    // _fn -> '_fn' '(' (typed ( ',' typed )*)? ')' ("->" type)? block
+    // _fn -> '_fn' '(' (typed ( ',' typed )*)? ')' ("->" type)? (block | inline_ret)
     fn _fn(&self) -> Result<Fn, Error> {
         let _ = self.advance();
 
@@ -495,7 +503,13 @@ impl Parser {
             Type::Unit
         };
 
-        let body = self.block()?;
+        let body = if self.is_match(TokType::Colon) {
+            let colon = self.peek().clone();
+            let _return = Statement::Return(Error::new_return(Some(self.inline_ret()?), colon));
+            Block { statements: vec![_return]}
+        } else {
+            self.block()?
+        };
 
         Ok(Fn { params, return_t, body })
     }
@@ -523,10 +537,7 @@ impl Parser {
         } else {
             None
         };
-        let msg = String::from("Attempt to use return statement outside of _fnedure.");
-        Error {
-            msg, special: Some(Special::Return(value, r.clone())), col_start: r.col_start, col_end: r.col_end, line: r.line
-        }
+        Error::new_return(value, r.clone())
     }
     // for -> 'for' IDENTIFIER 'in' expr block
     fn _for(&self) -> Result<Statement, Error> {

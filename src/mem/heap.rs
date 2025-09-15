@@ -1,6 +1,7 @@
 use std::sync::RwLock;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
+use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
 
 use crate::runtime::val::{Val, Num, FnVal, Type};
@@ -15,7 +16,7 @@ pub enum HeapVal {
     Arr(Vec<Val>),
     Iter(Iter),
     Sym(SymExpr),
-    Fn(FnVal),
+    Fn(Arc<FnVal>),
 }
 
 #[derive(Clone, Debug)]
@@ -117,7 +118,7 @@ impl Heap {
     pub fn mark(&self, addr: u64) {
         if !self.marks.read().unwrap().get(&addr).unwrap() {
             self.marks.write().unwrap().get_mut(&addr).map(|v| *v = true);
-            self.mem.read().unwrap().get(&addr).map(|v| match v {
+            self.mem.try_read().unwrap().get(&addr).map(|v| match v {
                 HeapVal::Arr(arr) => {
                     arr.iter().for_each(|v| match v {
                         Val::Arr(v_addr) => self.mark(*v_addr),
@@ -130,7 +131,7 @@ impl Heap {
         }
     }
     fn free(&self, addr: u64) {
-        self.mem.write().unwrap().remove(&addr);
+        self.mem.try_write().unwrap().remove(&addr);
         self.marks.write().unwrap().remove(&addr);
     }
     pub fn sweep(&self) {
@@ -150,60 +151,60 @@ impl Heap {
         self.hidden_ref.write().unwrap().remove(&addr);
     }
     pub fn get(&self, id: u64) -> Option<HeapVal> {
-        self.mem.read().unwrap().get(&id).map(|v| (*v).clone())
+        self.mem.try_read().unwrap().get(&id).map(|v| (*v).clone())
     }
     pub fn get_at(&self, id: u64, idx: usize) -> Option<Val> {
-        self.mem.read().unwrap().get(&id).map(|v| match v {
+        self.mem.try_read().unwrap().get(&id).map(|v| match v {
             HeapVal::Arr(arr) => Some(arr[idx].clone()),
             HeapVal::Str(s) => Some(Val::Char(s[idx])),
             _ => None
         }).flatten()
     }
     pub fn set_arr(&self, id: u64, idx: usize, v: Val) {
-        self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
+        self.mem.try_write().unwrap().get_mut(&id).map(|arr| match arr {
             HeapVal::Arr(arr) => arr[idx] = v,
             _ => panic!("Cannot call set_arr on non-arr"),
         });
     }
     pub fn push_arr(&self, id: u64, v: Val) {
-        self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
+        self.mem.try_write().unwrap().get_mut(&id).map(|arr| match arr {
             HeapVal::Arr(arr) => arr.push(v),
             _ => panic!("Cannot call push_arr on non-arr"),
         });
     }
     pub fn pop_arr(&self, id: u64) -> Option<Val> {
-        self.mem.write().unwrap().get_mut(&id).map(|arr| match arr {
+        self.mem.try_write().unwrap().get_mut(&id).map(|arr| match arr {
             HeapVal::Arr(arr) => arr.pop(),
             _ => panic!("Cannot call pop_arr on non-arr"),
         }).unwrap_or(None)
     }
     pub fn set_str(&self, addr: u64, idx: usize, c: u8) {
-        self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
+        self.mem.try_write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str[idx] = c,
             _ => panic!("Cannot call set_str on non-string"),
         });
     }
     pub fn push_str(&self, addr: u64, c: u8) {
-        self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
+        self.mem.try_write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str.push(c),
             _ => panic!("Cannot call push_str on non-string"),
         });
     }
     pub fn pop_str(&self, addr: u64) -> Option<Val> {
-        self.mem.write().unwrap().get_mut(&addr).map(|str| match str {
+        self.mem.try_write().unwrap().get_mut(&addr).map(|str| match str {
             HeapVal::Str(str) => str.pop().map(|c| Val::Char(c)),
             _ => panic!("Cannot call pop_str on non-string"),
         }).unwrap_or(None)
     }
     pub fn next_iter(&self, addr: u64) -> Option<Val> {
-        self.mem.read().unwrap().get(&addr).map(|v| match v {
+        self.mem.try_read().unwrap().get(&addr).map(|v| match v {
             HeapVal::Iter(iter) => iter.next(self),
             _ => panic!("Cannot not call iter_next on non-iterator"),
         }).unwrap_or(None)
     }
     pub fn simplify_sym(&self, addr: u64) {
 
-        let mut mem = self.mem.write().unwrap();
+        let mut mem = self.mem.try_write().unwrap();
         let sym = mem.get_mut(&addr).unwrap();
         match sym {
             HeapVal::Sym(s) => {
@@ -213,7 +214,7 @@ impl Heap {
         }
     }
     pub fn to_string(&self, addr: u64) -> String {
-        let reader = self.mem.read().unwrap();
+        let reader = self.mem.try_read().unwrap();
         let v = match reader.get(&addr) {
             Some(v) => v,
             None => return String::from("<null>"),
@@ -252,20 +253,23 @@ impl Heap {
         }
     }
     pub fn call(&self, id: u64, c: &Call, i: &Interpreter) -> Result<Val, Error> {
-        let reader = self.mem.try_read().unwrap();
-        let v = reader.get(&id).unwrap();
-        match v {
-            HeapVal::Fn(f) => f.call(c, i),
-            _ => unreachable!()
-        }
+        let f = {
+            let reader = self.mem.try_read().unwrap();
+            let v = reader.get(&id).unwrap();
+            match v {
+                HeapVal::Fn(f) => Arc::clone(f),
+                _ => unreachable!()
+            }
+        };
+        f.call(c, i)
     }
     pub fn type_fn(&self, id: u64) -> Type {
         let reader = self.mem.try_read().unwrap();
         let v = reader.get(&id).unwrap();
         match v {
-            HeapVal::Fn(FnVal { params, return_t, ..}) => {
-                let param_t: Vec<Type> = params.iter().map(|(_, t)| t.clone()).collect();
-                Type::Fn(param_t, Box::new(return_t.clone()))
+            HeapVal::Fn(f) => {
+                let param_t: Vec<Type> = f.params.iter().map(|(_, t)| t.clone()).collect();
+                Type::Fn(param_t, Box::new(f.return_t.clone()))
             }
             _ => unreachable!()
         }
@@ -273,7 +277,7 @@ impl Heap {
     pub fn alloc(&self, val: HeapVal) -> u64 {
         let addr = self.counter.load(SeqCst);
         self.counter.store(addr + 1, SeqCst);
-        self.mem.write().unwrap().insert(addr,val);
+        self.mem.try_write().unwrap().insert(addr,val);
         self.marks.write().unwrap().insert(addr, false);
         addr
     }

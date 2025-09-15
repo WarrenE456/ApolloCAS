@@ -425,7 +425,7 @@ impl<'a> Interpreter {
             Ok(())
     }
     fn _fn(&self, p: Fn) -> Result<Val, Error> {
-        let addr = self.heap.alloc(HeapVal::Fn(FnVal::from(p)));
+        let addr = self.heap.alloc(HeapVal::Fn(Arc::new(FnVal::from(p))));
         Ok(Val::Fn(addr))
     }
     fn set_index(&self, s: &SetIndex) -> Result<(), Error> {
