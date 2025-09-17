@@ -198,9 +198,9 @@ impl Heap {
     }
     pub fn next_iter(&self, addr: u64) -> Option<Val> {
         self.mem.try_read().unwrap().get(&addr).map(|v| match v {
-            HeapVal::Iter(iter) => iter.next(self),
-            _ => panic!("Cannot not call iter_next on non-iterator"),
-        }).unwrap_or(None)
+            HeapVal::Iter(iter) => Some(iter.next(self)),
+            _ => None,
+        }).flatten().unwrap_or(None)
     }
     pub fn simplify_sym(&self, addr: u64) {
 

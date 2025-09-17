@@ -17,7 +17,8 @@ use mem::gc::GC;
 
 /* TODO
 *
-* fn as value
+* make fn types manditory
+* classes
 * ignore newlines inside parenthesis
 * explicit casting
 * polymorphic types

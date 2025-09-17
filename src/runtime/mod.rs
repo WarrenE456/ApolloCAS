@@ -4,8 +4,8 @@ pub mod builtin;
 use crate::error::{Error, Special};
 use crate::parser::statement::*;
 use crate::scanner::tok::{Tok, TokType};
+use crate::mem::heap::{Heap, HeapVal, HeapIter, Iter};
 use crate::mem::env::Env;
-use crate::mem::heap::{Heap, HeapVal, HeapIter};
 use crate::runtime::val::{Val, FnVal};
 use crate::parser::expr::*;
 use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
@@ -119,7 +119,8 @@ impl<'a> Interpreter {
                 let col_end = c.identifier.col_end;
                 let line = c.identifier.line;
                 return Err(Error { special: None,
-                    msg: format!("Attempt to use function calling notation on a {}.", other.type_as_string(&self.heap)), col_start, col_end, line
+                    msg: format!("Attempt to use function calling notation on a {}.",
+                        other.type_as_string(&self.heap)), col_start, col_end, line
                 });
             }
         }
@@ -433,13 +434,16 @@ impl<'a> Interpreter {
             .index(self.get_index(&s.index)?, &s.index.clone(), Some(self.expr(&s.value)?), &self.heap)?;
         Ok(())
     }
+    fn to_iter(addr: u64, h: &Heap) -> u64 {
+        let iter = HeapVal::Iter(Iter::Heap(HeapIter::new(addr)));
+        h.alloc(iter)
+    }
     fn _for(&self, f: &For) -> Result<(), Error> {
         let addr = match self.expr(&f.iter)? {
-            Val::Arr(addr) => addr,
-            Val::Str(addr) => addr,
+            Val::Arr(addr) | Val::Str(addr) => Self::to_iter(addr, &self.heap),
             Val::Iter(i) => i,
             other => {
-                let msg = format!("Attempt to iterate over a {}.", other.type_as_string(&self.heap));
+                let msg = format!("Attempt to iterate over a value of type {}.", other.type_as_string(&self.heap));
                 return Err(Error { special: None, msg,
                     col_start: f.fro.col_start, col_end: f.fro.col_end, line: f.fro.line
                 });
