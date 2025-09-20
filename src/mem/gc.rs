@@ -23,6 +23,7 @@ impl<'a> GC {
                 (_,Val::Arr(addr)) => self.heap.mark(*addr),
                 (_,Val::Str(addr)) => self.heap.mark(*addr),
                 (_,Val::Fn(addr)) => self.heap.mark(*addr),
+                (_,Val::Sym(addr)) => self.heap.mark(*addr),
                 (_,Val::Iter(addr)) => {
                     self.heap.mark(*addr);
                     self.heap.get(*addr).map(|hv| match hv {
