@@ -81,6 +81,16 @@ impl Num {
             Float(n) => n as i64,
         }
     }
+    pub fn to_sym(self) -> SymExpr {
+        match self {
+            Num::Int(i) => SymExpr::Z(i.to_bigint().unwrap()),
+            Num::Float(f) => if f.fract() == 0.0 {
+                SymExpr::Z((f as i64).to_bigint().unwrap())
+            } else {
+                todo!()
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

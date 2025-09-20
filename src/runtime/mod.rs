@@ -42,6 +42,26 @@ impl<'a> Interpreter {
             _ => unreachable!(),
         }
     }
+    fn bin_sym(addr1: u64, addr2: u64, op: &Tok, h: &Heap) -> Val {
+        // TODO improve performance
+        let a = match h.get(addr1) {
+            Some(HeapVal::Sym(s)) => s,
+            _ => unreachable!(),
+        };
+        let b = match h.get(addr2) {
+            Some(HeapVal::Sym(s)) => s,
+            _ => unreachable!(),
+        };
+        use TokType::*;
+        let expr = match op.t {
+            Plus => SymExpr::add(a, b),
+            Minus => SymExpr::add(a, Negate::negate_sym_expr(b)),
+            Star => SymExpr::mul(a, b),
+            Slash => todo!(),
+            _ => unreachable!(),
+        };
+        Val::Sym(h.alloc(HeapVal::Sym(expr)))
+    }
     fn binary(&self, b: &Binary) -> Result<Val, Error> {
         use TokType::*;
         let mut result = self.expr(&b.operands.first().unwrap())?;
@@ -62,23 +82,12 @@ impl<'a> Interpreter {
                     _ => unreachable!(),
                 }
                 (Val::Sym(a), Val::Sym(b)) =>{
-                    // TODO improve efficency
-                    let a = match self.heap.get(a) {
-                        Some(HeapVal::Sym(s)) => s,
-                        _ => unreachable!(),
-                    };
-                    let b = match self.heap.get(b) {
-                        Some(HeapVal::Sym(s)) => s,
-                        _ => unreachable!(),
-                    };
-                    let expr = match op.t {
-                        Plus => SymExpr::add(a, b),
-                        Minus => SymExpr::add(a, Negate::negate_sym_expr(b)),
-                        Star => SymExpr::mul(a, b),
-                        Slash => todo!(),
-                        _ => unreachable!(),
-                    };
-                    result = Val::Sym(self.heap.alloc(HeapVal::Sym(expr)));
+                    result = Self::bin_sym(a, b, op, &self.heap);
+                }
+                (Val::Sym(a), Val::Num(b))
+                | (Val::Num(b), Val::Sym(a)) => {
+                    let b = self.heap.alloc(HeapVal::Sym(b.to_sym()));
+                    result = Self::bin_sym(a, b, op, &self.heap);
                 }
                 (a, b) => {
                     let msg = format!(
