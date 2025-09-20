@@ -27,7 +27,7 @@ impl SymExpr {
             SymExpr::Symbol(_) => self,
             SymExpr::Sum(s) => s.simplify(),
             SymExpr::Product(p) => p.simplify(),
-            SymExpr::Pow(_) => todo!(),
+            SymExpr::Pow(p) => p.simplify(),
         }
     }
     // TODO parenthesis when child op has lower precedence than parent op
@@ -172,6 +172,18 @@ impl SymExpr {
         match self {
             SymExpr::Sum(s) => s.terms.len(),
             _ => 0,
+        }
+    }
+    pub fn is_one(&self) -> bool {
+        match self {
+            SymExpr::Z(z) => z.is_one(),
+            _ => false
+        }
+    }
+    pub fn is_zero(&self) -> bool {
+        match self {
+            SymExpr::Z(z) => *z == BigInt::ZERO,
+            _ => false
         }
     }
 }
@@ -433,6 +445,51 @@ impl Pow {
         match self.exp.order(&other.exp) {
             Ordering::Equal => self.base.order(&other.base),
             order => order,
+        }
+    }
+    fn simplify_children(self) -> Pow {
+        let base = Box::new(self.base.simplify());
+        let exp = Box::new(self.exp.simplify());
+        Pow { base, exp }
+    }
+    fn flatten(self) -> Pow {
+        match *self.base {
+            SymExpr::Pow(p) => {
+                let base = Box::new(p.base.simplify());
+                let exp = Box::new(self.exp.mul(*p.exp).simplify());
+                Pow {base, exp}
+            }
+            base => Pow { base: Box::new(base), exp: self.exp }
+        }
+    }
+    fn expand_or_eval(self) -> SymExpr {
+        match (&*self.base, &*self.exp) {
+            (SymExpr::Z(a), SymExpr::Z(b)) => {
+                let exp = b.try_into().expect("Exponent too large.");
+                SymExpr::Z(a.pow(exp))
+            }
+            (expr, SymExpr::Z(exp)) => {
+                let exp = exp.try_into().expect("Exponent too large.");
+                let factors = vec![expr.clone(); exp];
+                Product { factors }.simplify()
+            }
+            _ => SymExpr::Pow(self)
+        }
+    }
+    pub fn simplify(self) -> SymExpr {
+        let pow = self
+            .simplify_children()
+            .flatten();
+
+        if pow.base.is_one() {
+            return SymExpr::Z(BigInt::one());
+        }
+        else if pow.exp.is_zero() {
+            return SymExpr::Z(BigInt::one());
+        } else if pow.exp.is_one() {
+            return *pow.base;
+        } else {
+            pow.expand_or_eval()
         }
     }
 }
