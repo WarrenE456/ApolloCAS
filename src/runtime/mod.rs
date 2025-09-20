@@ -98,6 +98,10 @@ impl<'a> Interpreter {
                 }
             }
         }
+        match &result {
+            Val::Sym(addr) => self.heap.simplify_sym(*addr),
+            _ => {}
+        }
         Ok(result)
     }
     fn negate(&self, n: &Negate) -> Result<Val, Error> {
