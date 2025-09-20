@@ -76,6 +76,13 @@ impl SymExpr {
             (a, b) => SymExpr::Product(Product { factors: vec![a, b] }.flatten()),
         }
     }
+    pub fn arg_count(&self) -> usize {
+        match self {
+            SymExpr::Z(_) | SymExpr::Symbol(_) | SymExpr::Pow(_) => 1,
+            SymExpr::Sum(s) => s.terms.len(),
+            SymExpr::Product(p) => p.factors.len(),
+        }
+    }
     /*
     Takes two symbolic expressions, both of which must be simplified
     Based of of ordering in product.
@@ -98,10 +105,10 @@ impl SymExpr {
         a, b:
             a comes before b if sum_deg(a) comes after sum_deg(b), implying Symbol < Pow
             otherwise a comes before b if len(a) > len(b), len is the number of terms, len(sym) < len(product | sum)
-            otherwise compare first arguements, then the next. At this point a and b must both be sums.
+            otherwise compare first arguements, then the next.
+            if both have all equal arguements then go by number of arguments
     */
     pub fn order (&self, other: &SymExpr) -> Ordering {
-        // TODO double check work
         match (self, other) {
             (SymExpr::Z(z), SymExpr::Z(zz)) => z.cmp(zz),
             (SymExpr::Z(_), _) => Ordering::Less,
@@ -112,7 +119,7 @@ impl SymExpr {
 
             
             (SymExpr::Sum(_), SymExpr::Z(_) | SymExpr::Symbol(_)) => Ordering::Greater,
-            (SymExpr::Sum(s), SymExpr::Sum(ss)) => s.order(ss),
+            // (SymExpr::Sum(s), SymExpr::Sum(ss)) => s.order(ss), TODO remove
 
             (SymExpr::Product(_), SymExpr::Z(_)) => Ordering::Greater,
             (SymExpr::Product(p), SymExpr::Product(pp)) => panic!("{:?} {:?}", p, pp), // TODO
@@ -144,9 +151,11 @@ impl SymExpr {
 
         match (a, b) {
             (SymExpr::Sum(a), SymExpr::Sum(b)) => a.order_eq_len_sum(b),
-            _ => unreachable!() // TODO wait this isn't actually unreachable? $2 * b + a got it
+            // (SumExpr::Product(a), SymExpr::Product(b) => 
+            _ => unreachable!()
         }
     }
+
     pub fn sum_deg(&self) -> SymExpr {
         match self {
             SymExpr::Z(_) => SymExpr::Z(BigInt::ZERO),
@@ -279,26 +288,27 @@ impl Sum {
                 _ => {}
             }
         }
-        Ordering::Equal // Should be unreachable
-    }
-    pub fn order(&self, other: &Sum) -> Ordering {
-        if self.terms.len() < other.terms.len() {
-            return Ordering::Less;
-        }
-        else if other.terms.len() < self.terms.len() {
-            return Ordering::Greater;
-        }
-
-        for (t1, t2) in Iterator::zip(self.terms.iter().rev(), other.terms.iter().rev()) {
-            if t1 == t2 {
-                continue;
-            } else {
-                return t1.order(t2)
-            }
-        }
-
         Ordering::Equal
     }
+    // TODO remove
+    // pub fn order(&self, other: &Sum) -> Ordering {
+    //     if self.terms.len() < other.terms.len() {
+    //         return Ordering::Less;
+    //     }
+    //     else if other.terms.len() < self.terms.len() {
+    //         return Ordering::Greater;
+    //     }
+    //
+    //     for (t1, t2) in Iterator::zip(self.terms.iter().rev(), other.terms.iter().rev()) {
+    //         if t1 == t2 {
+    //             continue;
+    //         } else {
+    //             return t1.order(t2)
+    //         }
+    //     }
+    //
+    //     Ordering::Equal
+    // }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -471,3 +481,18 @@ impl Pow {
         }
     }
 }
+
+// TODO remove
+// struct SymIter<'a> {
+//     id: usize,
+//     args: &'a Vec<SymExpr>,
+// }
+//
+// impl<'a> SymIter<'a> {
+//     pub fn new(id: usize, args: &'a Vec<SymExpr>) -> SymIter<'a> {
+//         SymIter { id, args }
+//     }
+// }
+//
+// impl<'a> Iterator for SymIter<'a> {
+// }
