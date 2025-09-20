@@ -48,7 +48,7 @@ impl Expr {
                     .join(", ");
                 format!("{}({})", c.identifier.lexeme, args)
             }
-            Exp(e) => format!("{}^{}", e.base.to_string(), e.power.to_string()),
+            Exp(e) => format!("{}^{}", e.base.to_string(), e.exp.to_string()),
             Comp(c) => {
                 c.operands
                     .iter().enumerate()
@@ -104,6 +104,7 @@ impl Expr {
             Expr::Group(g) => g.to_sym(),
             Expr::Sym(_, s) => s.to_sym(),
             Expr::Negate(n) => n.to_sym(),
+            Expr::Exp(e) => e.to_sym(),
             _ => Err(format!("Cannot convert {} expression to a symbolic expression.", self.kind_name()))
  // TODO
         }
@@ -113,8 +114,16 @@ impl Expr {
 #[derive(Debug, Clone)]
 pub struct Exp {
     pub base: Box<Expr>,
-    pub power: Box<Expr>,
+    pub exp: Box<Expr>,
     pub op: Tok,
+}
+
+impl Exp {
+    pub fn to_sym(&self) -> Result<SymExpr, String> {
+        let base = self.base.to_sym().map(|v| Box::new(v))?;
+        let exp = self.exp.to_sym().map(|v| Box::new(v))?;
+        Ok(SymExpr::Pow(Pow {base, exp}))
+    }
 }
 
 #[derive(Debug, Clone)]

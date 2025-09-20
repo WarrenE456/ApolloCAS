@@ -191,7 +191,7 @@ impl Parser {
         if self.is_match(TokType::Carrot) {
             let op = self.advance().clone();
             let power = Box::new(self.expo()?);
-            expr = Expr::Exp(Exp { base: Box::new(expr), op, power });
+            expr = Expr::Exp(Exp { base: Box::new(expr), op, exp: power });
         }
         Ok(expr)
     }

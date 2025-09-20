@@ -1,7 +1,7 @@
 pub extern crate num_bigint;
 pub extern crate num_traits;
 
-use num_bigint::{BigInt, ToBigInt};
+use num_bigint::BigInt;
 use num_traits::One;
 
 use std::str::FromStr;
@@ -173,17 +173,6 @@ impl SymExpr {
             SymExpr::Sum(s) => s.terms.len(),
             _ => 0,
         }
-    }
-}
-
-fn string_order(s: &String, ss: &String) -> Ordering {
-    if s.len() == ss.len() {
-        s.cmp(&ss)
-    }
-    else if s.len() < ss.len() {
-        Ordering::Less
-    } else {
-        Ordering::Greater
     }
 }
 

@@ -127,7 +127,7 @@ impl<'a> Interpreter {
     }
     fn exp(&self, e: &Exp) -> Result<Val, Error> {
         let base = self.expr(&e.base)?;
-        let power = self.expr(&e.power)?;
+        let power = self.expr(&e.exp)?;
         match (&base, &power) {
             (Val::Num(a), Val::Num(b)) => Ok(Val::Num(match (a, b) {
                 (Num::Int(a), Num::Int(b)) => {

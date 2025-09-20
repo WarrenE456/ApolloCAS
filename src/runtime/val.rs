@@ -16,15 +16,6 @@ pub enum Num {
     Int(i64),
 }
 
-impl Num {
-    fn to_sym(&self) -> SymExpr {
-        match self {
-            Num::Int(i) => SymExpr::Z(i.to_bigint().unwrap()),
-            Num::Float(_) => todo!()
-        }
-    }
-}
-
 impl Mul for Num {
     type Output = Self;
     fn mul(self, other: Self) -> Self {
