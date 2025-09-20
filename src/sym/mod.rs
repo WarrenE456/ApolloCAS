@@ -76,86 +76,82 @@ impl SymExpr {
             (a, b) => SymExpr::Product(Product { factors: vec![a, b] }.flatten()),
         }
     }
-    pub fn arg_count(&self) -> usize {
+    // Value for ordering differient kinds
+    pub fn kind_value(&self) -> usize {
         match self {
-            SymExpr::Z(_) | SymExpr::Symbol(_) | SymExpr::Pow(_) => 1,
-            SymExpr::Sum(s) => s.terms.len(),
-            SymExpr::Product(p) => p.factors.len(),
+            SymExpr::Z(_) => 0,
+            SymExpr::Symbol(_) => 1,
+            SymExpr::Pow(_) => 2,
+            SymExpr::Product(_) => 3,
+            SymExpr::Sum(_) => 4,
         }
     }
     /*
-    Takes two symbolic expressions, both of which must be simplified
-    Based of of ordering in product.
-    Ordering should be reversed in sums.
-    Returns Ordering::Less of a comes before b,
-            and Order::Greater if a comes after b,
-            Order::Equal if a and b are the same order
-            Order::Equal should only be used for a, b in Z because otherwise order could be ambiguous
-    Rules:
-        Certain expression kinds are always less than others:
-            Z < Symbol =? Product =? Sum =? Pow
-            and Symbol < (Pow, Sum)
-        If expressions are of the same kind...
-        both Z:
-            z_i comes before z_k if z_i < z_k
-            this only really matters for ordering pow
-        both Sym:
-            symbol a comes before symbol b if len(a) < len(b)
-            if len(a) = len(b), then ordering lexographically
-        a, b:
-            a comes before b if sum_deg(a) comes after sum_deg(b), implying Symbol < Pow
-            otherwise a comes before b if len(a) > len(b), len is the number of terms, len(sym) < len(product | sum)
-            otherwise compare first arguements, then the next.
-            if both have all equal arguements then go by number of arguments
+    *
+    Ordring function for general expressions
+    Nessessary for cannonical representations
+    e.g. 1 + x -> x + 1, x + 1 = x + 1 is true
+    
+    Start my comparing expression kinds:
+    Z < Symbol < Power < Product < Sum
+    
+    Then compare amoung like-kinds:
+    Z:
+    a < b -> a comes before b
+
+    Symbol:
+    lexographic ordering
+
+    Power:
+    compare exponents then bases
+
+    Product | Sum:
+    compare elementwise
+    then len(a) < len(b) -> a comes before b
+
     */
-    pub fn order (&self, other: &SymExpr) -> Ordering {
+    pub fn order(&self, other: &SymExpr) -> Ordering {
+
+        let self_value = self.kind_value();
+        let other_value = other.kind_value();
+
+        // Ensures kind(a) = kind(b)
+        if self_value < other_value {
+            return Ordering::Less;
+        } else if self_value > other_value {
+            return Ordering::Greater;
+        }
+
         match (self, other) {
-            (SymExpr::Z(z), SymExpr::Z(zz)) => z.cmp(zz),
-            (SymExpr::Z(_), _) => Ordering::Less,
-
-            (SymExpr::Symbol(_), SymExpr::Z(_)) => Ordering::Greater,
-            (SymExpr::Symbol(s), SymExpr::Symbol(ss)) => string_order(&s, &ss),
-            (SymExpr::Symbol(s), SymExpr::Pow(_) | SymExpr::Sum(_)) => Ordering::Less,
-
-            
-            (SymExpr::Sum(_), SymExpr::Z(_) | SymExpr::Symbol(_)) => Ordering::Greater,
-            // (SymExpr::Sum(s), SymExpr::Sum(ss)) => s.order(ss), TODO remove
-
-            (SymExpr::Product(_), SymExpr::Z(_)) => Ordering::Greater,
-            (SymExpr::Product(p), SymExpr::Product(pp)) => panic!("{:?} {:?}", p, pp), // TODO
-
-            (SymExpr::Pow(_), SymExpr::Z(_) | SymExpr::Symbol(_)) => Ordering::Greater,
-            (SymExpr::Pow(p), SymExpr::Pow(pp)) => p.order(pp),
-
-            (a, b) => Self::order_aux(a, b),
+            (SymExpr::Z(a), SymExpr::Z(b)) => {
+                a.cmp(b)
+            }
+            (SymExpr::Symbol(a), SymExpr::Symbol(b)) => {
+                a.cmp(b)
+            }
+            (SymExpr::Pow(a), SymExpr::Pow(b)) => {
+                a.order(b)
+            }
+            (SymExpr::Product(a), SymExpr::Product(b)) => {
+                Self::elementwise_order(&a.factors, &b.factors)
+            }
+            (SymExpr::Sum(a), SymExpr::Sum(b)) => {
+                Self::elementwise_order(&a.terms, &b.terms)
+            }
+            _ => unreachable!(),
         }
     }
-    fn order_aux(a: &SymExpr, b: &SymExpr) -> Ordering {
-        let a_deg = a.sum_deg().order(&b.sum_deg());
-        if a_deg.is_gt() {
-            return Ordering::Greater;
-        }
-        else if a_deg.is_lt() {
-            return Ordering::Less;
-        }
-
-        let a_n = a.num_terms();
-        let b_n = a.num_terms();
-
-        if a_n < b_n {
-            return Ordering::Less;
-        }
-        else if a_n > b_n {
-            return Ordering::Greater;
+    fn elementwise_order(args1: &Vec<SymExpr>, args2: &Vec<SymExpr>) -> Ordering {
+        use std::iter::zip;
+        for (a, b) in zip(args1.iter().rev(), args2.iter().rev()) {
+            match a.order(b) {
+                Ordering::Equal => {}
+                other => return other,
+            }
         }
 
-        match (a, b) {
-            (SymExpr::Sum(a), SymExpr::Sum(b)) => a.order_eq_len_sum(b),
-            // (SumExpr::Product(a), SymExpr::Product(b) => 
-            _ => unreachable!()
-        }
+        args1.len().cmp(&args2.len())
     }
-
     pub fn sum_deg(&self) -> SymExpr {
         match self {
             SymExpr::Z(_) => SymExpr::Z(BigInt::ZERO),
@@ -217,7 +213,7 @@ impl Sum {
     }
     fn order_terms(self) -> Sum {
         let mut terms = self.terms;
-        terms.sort_by(|a, b| b.order(a));
+        terms.sort_by(|a, b| a.order(b));
         Sum { terms }
     }
     fn combine_like_terms(self) -> SymExpr {
@@ -279,36 +275,6 @@ impl Sum {
         }
         Sum{ terms }
     }
-    fn order_eq_len_sum(&self, other: &Sum) -> Ordering {
-        assert_eq!(self.terms.len(), other.terms.len());
-        for (a, b) in Iterator::zip(self.terms.iter(), other.terms.iter()) {
-            match a.order(b) {
-                Ordering::Less => return Ordering::Less,
-                Ordering::Greater => return Ordering::Greater,
-                _ => {}
-            }
-        }
-        Ordering::Equal
-    }
-    // TODO remove
-    // pub fn order(&self, other: &Sum) -> Ordering {
-    //     if self.terms.len() < other.terms.len() {
-    //         return Ordering::Less;
-    //     }
-    //     else if other.terms.len() < self.terms.len() {
-    //         return Ordering::Greater;
-    //     }
-    //
-    //     for (t1, t2) in Iterator::zip(self.terms.iter().rev(), other.terms.iter().rev()) {
-    //         if t1 == t2 {
-    //             continue;
-    //         } else {
-    //             return t1.order(t2)
-    //         }
-    //     }
-    //
-    //     Ordering::Equal
-    // }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -481,18 +447,3 @@ impl Pow {
         }
     }
 }
-
-// TODO remove
-// struct SymIter<'a> {
-//     id: usize,
-//     args: &'a Vec<SymExpr>,
-// }
-//
-// impl<'a> SymIter<'a> {
-//     pub fn new(id: usize, args: &'a Vec<SymExpr>) -> SymIter<'a> {
-//         SymIter { id, args }
-//     }
-// }
-//
-// impl<'a> Iterator for SymIter<'a> {
-// }
