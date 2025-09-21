@@ -8,7 +8,8 @@ use crate::parser::statement::Block;
 use crate::scanner::tok::Tok;
 use crate::sym::*;
 
-use num_bigint::ToBigInt;
+use num_bigint::{ToBigInt, BigInt};
+use num_traits::Signed;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Num {
@@ -88,6 +89,77 @@ impl Num {
                 SymExpr::Z((f as i64).to_bigint().unwrap())
             } else {
                 todo!()
+            }
+        }
+    }
+    // Unit normal gcd
+    // if a is a float n(a) = 1.0
+    // if a is a int n(a) = |a|
+    // thus gcds of floats are 1 and gcds of integers are positive
+    pub fn gcd(self, other: Num) -> Num {
+        match (self, other) {
+            (Num::Float(a), Num::Float(b)) => Num::Float(Self::float_gcd(a, b)), 
+            (Num::Float(a), Num::Int(b))
+            | (Num::Int(b), Num::Float(a)) => Num::Float(Self::float_gcd(a, b as f64)),
+            (Num::Int(a), Num::Int(b)) => Num::Int(bin_gcd(a, b, 0, 2)),
+        }
+    }
+    fn float_gcd(a: f64, b: f64) -> f64 {
+        if a == 0.0 && b == 0.0 {
+            0.0
+        } else {
+            1.0
+        }
+    }
+}
+
+trait Even {
+    fn is_even(&self) -> bool;
+}
+
+impl Even for BigInt {
+    fn is_even(&self) -> bool {
+        self.bit(0) == false
+    }
+}
+
+impl Even for i64 {
+    fn is_even(&self) -> bool {
+        self & 1 == 0
+    }
+}
+
+fn bin_gcd<T>(a: T, b: T, zero: T, two: T) -> T
+where
+    T: PartialEq + Even + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Ord + Copy + Signed
+{
+    bin_gcd_aux(a.abs(), b.abs(), zero, two)
+}
+
+fn bin_gcd_aux<T>(a: T, b: T, zero: T, two: T) -> T
+where
+    T: PartialEq + Even + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Ord + Copy
+{
+    if a == zero {
+        b
+    }
+    else if b == zero {
+        a
+    }
+    else {
+        let a_even = a.is_even();
+        let b_even = b.is_even();
+        match (a_even, b_even) {
+            (true, true) => two * bin_gcd_aux(a / two, b / two, zero, two),
+            (true, false) => bin_gcd_aux(a / two, b, zero, two),
+            (false, true) => bin_gcd_aux(a, b / two, zero, two),
+            (false , false) => {
+                let (max, min) = if a > b {
+                    (a, b)
+                } else {
+                    (b, a)
+                };
+                bin_gcd_aux(min, max - min, zero, two)
             }
         }
     }

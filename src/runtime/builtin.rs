@@ -27,6 +27,7 @@ enum BuiltInT {
     Type,
     Iter,
     Next,
+    Gcd,
 }
 
 impl BuiltInT {
@@ -52,6 +53,7 @@ impl BuiltInT {
             Type => "type",
             Iter => "iter",
             Next => "next",
+            Gcd => "gcd",
         })
     }
 }
@@ -84,6 +86,7 @@ impl BuiltIn {
             "type" => Type,
             "iter" => Iter,
             "next" => Next,
+            "gcd" => Gcd,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -384,6 +387,26 @@ impl BuiltIn {
             }
         }
     }
+    fn gcd(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 2 {
+            let msg = format!("'gcd' expects 2 arguments, but found {}", c.args.len());
+            return Err(Error::from_call(msg, c));
+        }
+
+        match (i.expr(&c.args[0])?, i.expr(&c.args[1])?) {
+            (Val::Num(a), Val::Num(b)) => Ok(Val::Num(Num::gcd(a, b))),
+            (Val::Sym(a), Val::Sym(b)) => todo!(),
+            (Val::Sym(a), b)
+            | (b, Val::Sym(a)) => todo!(),
+            (a, b) => {
+                let msg = format!(
+                    "Cannot take the gcd of values of type {} and {}.",
+                    a.type_as_string(&i.heap), b.type_as_string(&i.heap)
+                );
+                Err(Error::from_call(msg, c))
+            }
+        }
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -405,6 +428,7 @@ impl BuiltIn {
             Type => Self::_type(c, i),
             Iter => Self::iter(c, i),
             Next => Self::next(c, i),
+            Gcd => Self::gcd(c, i),
             _ => self.basic(c, 1, i),
         }
     }

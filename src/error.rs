@@ -1,5 +1,6 @@
 use crate::parser::expr::Expr;
 use crate::scanner::tok::Tok;
+use crate::parser::expr::Call;
 
 #[derive(Debug, Clone)]
 pub enum Special {
@@ -23,6 +24,9 @@ impl Error {
         Self { special: None,
             msg, line: start.line, col_start: start.col_start, col_end: end.col_end
         }
+    }
+    pub fn from_call(msg: String, c: &Call) -> Error {
+        Self::from(msg, &c.identifier, &c.rparen)
     }
     pub fn new_return(expr: Option<Expr>, return_tok: Tok) -> Error {
         let msg = String::from("Attempt to use return statement outside of function.");
