@@ -22,6 +22,16 @@ impl SymExpr {
     pub fn z_from_string(s: &String) -> SymExpr {
         SymExpr::Z(BigInt::from_str(s.as_str()).unwrap())
     }
+    pub fn set_simplified(self, simplified: bool) -> SymExpr {
+        match self {
+            SymExpr::Z(_) => self,
+            SymExpr::Symbol(_) => self,
+            SymExpr::Sum(s) => SymExpr::Sum(s.set_simplified(simplified)),
+            SymExpr::Product(_p) => todo!(),
+            SymExpr::Pow(_p) => todo!(),
+            SymExpr::Polynomial(_) => self,
+        }
+    }
     pub fn simplify(self) -> SymExpr {
         match self {
             SymExpr::Z(_) => self,
@@ -59,7 +69,7 @@ impl SymExpr {
             let term = self.clone().mul(term.clone());
             terms.push(term);
         }
-        Sum { terms }
+        Sum::new(terms)
     }
     pub fn seperate_coef(self) -> (BigInt, SymExpr) {
         match self {
@@ -71,13 +81,13 @@ impl SymExpr {
     pub fn add(self, other: SymExpr) -> SymExpr {
         match (self, other) {
             (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a + b),
-            (a, b) => SymExpr::Sum(Sum { terms: vec![a, b] }.flatten()),
+            (a, b) => SymExpr::Sum(Sum::new(vec![a, b]).flatten()),
         }
     }
     pub fn mul(self, other: SymExpr) -> SymExpr {
         match (self, other) {
             (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a * b),
-            (a, b) => SymExpr::Product(Product { factors: vec![a, b] }.flatten()),
+            (a, b) => SymExpr::Product(Product::new(vec![a, b]).flatten()),
         }
     }
     // Value for ordering differient kinds
@@ -209,14 +219,22 @@ impl SymExpr {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Sum {
     pub terms: Vec<SymExpr>,
+    pub simplified: bool,
 }
 
 impl Sum {
+    pub fn new(terms: Vec<SymExpr>) -> Sum {
+        Sum { terms, simplified: false }
+    }
     fn simplify_each(self) -> Sum {
+        if self.simplified {
+            return self;
+        }
+
         let terms = self.terms
             .into_iter().map(|expr| expr.simplify())
             .collect::<Vec<SymExpr>>(); 
-        Sum { terms }
+        Sum::new(terms)
     }
     fn flatten(self) -> Sum {
         let mut terms = Vec::new();
@@ -228,12 +246,12 @@ impl Sum {
                 _ => terms.push(term)
             }
         }
-        Sum { terms }
+        Sum::new(terms)
     }
     fn order_terms(self) -> Sum {
         let mut terms = self.terms;
         terms.sort_by(|a, b| a.order(b));
-        Sum { terms }
+        Sum::new(terms)
     }
     fn combine_like_terms(self) -> SymExpr {
         let mut mp = HashMap::new();
@@ -253,11 +271,11 @@ impl Sum {
                     SymExpr::Z(coef)
                 } else {
                     let factors = vec![SymExpr::Z(coef), term];
-                    SymExpr::Product(Product{ factors }.flatten())
+                    SymExpr::Product(Product::new(factors).flatten())
                 }
             }else {
                 let factors = vec![SymExpr::Z(coef), term];
-                SymExpr::Product(Product{ factors }.flatten())
+                SymExpr::Product(Product::new(factors).flatten())
             };
             terms.push(term);
         }
@@ -267,17 +285,32 @@ impl Sum {
         else if terms.len() == 0 {
             SymExpr::Z(BigInt::ZERO)
         } else {
-            SymExpr::Sum(Sum{ terms })
+            SymExpr::Sum(Sum::new(terms))
         }
     }
+    pub fn distribute(self, other: Sum) -> Sum {
+        let mut terms = Vec::new();
+        for a in self.terms.iter() {
+            let term = a.clone().distribute(other.clone());
+            terms.push(SymExpr::Sum(term));
+        }
+        Sum::new(terms)
+    }
+    fn set_simplified(self, simplified: bool) -> Sum {
+        Sum { terms: self.terms, simplified }
+    }
     pub fn simplify(self) -> SymExpr {
+        if self.simplified {
+            return SymExpr::Sum(self);
+        }
+
         match self
             .simplify_each()
             .flatten()
             .combine_like_terms()
         {
-            SymExpr::Sum(s) => SymExpr::Sum(s.order_terms()),
-            other => other,
+            SymExpr::Sum(s) => SymExpr::Sum(s.order_terms().set_simplified(true)),
+            other => other.set_simplified(true),
         }
     }
     pub fn to_string(&self) -> String {
@@ -286,22 +319,21 @@ impl Sum {
             .collect::<Vec<_>>()
             .join(&String::from(" + "))
     }
-    pub fn distribute(self, other: Sum) -> Sum {
-        let mut terms = Vec::new();
-        for a in self.terms.iter() {
-            let term = a.clone().distribute(other.clone());
-            terms.push(SymExpr::Sum(term));
-        }
-        Sum{ terms }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Product {
     pub factors: Vec<SymExpr>,
+    pub simplified: bool,
 }
 
 impl Product {
+    pub fn new(factors: Vec<SymExpr>) -> Product {
+        Product { factors, simplified: false }
+    }
+    pub fn set_simplified(self, simplified: bool) -> Product {
+        Product { factors: self.factors, simplified }
+    }
     fn to_string(&self) -> String {
         self.factors
             .iter().map(|f| f.to_string())
@@ -323,7 +355,7 @@ impl Product {
                 }
                 (other1, other2) => {
                     let factors = vec![other1, other2];
-                    SymExpr::Product(Product{ factors }.flatten())
+                    SymExpr::Product(Product::new(factors).flatten())
                 }
             }
         };
@@ -348,7 +380,7 @@ impl Product {
                 _ => flattened.push(factor),
             }
         }
-        Product { factors: flattened }
+        Product::new(flattened)
     }
     fn add_a_to_entry(a: SymExpr, entry: &mut SymExpr) {
         match (entry, a) {
@@ -391,9 +423,9 @@ impl Product {
                 else if *z == BigInt::one() {
                     factors.push(base);
                 } else {
-                    factors.push(SymExpr::Pow(Pow { base: Box::new(base), exp: Box::new(exp) } ));
+                    factors.push(SymExpr::Pow(Pow::new(Box::new(base), Box::new(exp))));
                 }
-                _ => factors.push(SymExpr::Pow(Pow { base: Box::new(base), exp: Box::new(exp) } )),
+                _ => factors.push(SymExpr::Pow(Pow::new(Box::new(base), Box::new(exp)))),
             }
         }
 
@@ -404,29 +436,33 @@ impl Product {
         if factors.len() == 1 {
             factors.pop().unwrap()
         } else {
-            SymExpr::Product(Product { factors })
+            SymExpr::Product(Product::new(factors))
         }
     }
     fn order_factors(self) -> Product {
         let mut factors = self.factors;
         factors.sort_by(|a, b| a.order(b));
-        Product { factors }
+        Product::new(factors)
     }
     fn simplify_each(self) -> Product {
         let factors = self.factors.into_iter()
             .map(|expr| expr.simplify())
             .collect::<Vec<SymExpr>>();
-        Product{ factors }
+        Product::new(factors)
     }
     pub fn simplify(self) -> SymExpr {
+        if self.simplified {
+            return SymExpr::Product(self);
+        }
+
         match self
             .simplify_each()
             .flatten()
             .distribute()
         {
             SymExpr::Product(t) => match t.collect_factors() {
-                SymExpr::Product(p) => SymExpr::Product(p.order_factors()),
-                other => other
+                SymExpr::Product(p) => SymExpr::Product(p.order_factors().set_simplified(true)),
+                other => other.set_simplified(true)
             }
             SymExpr::Sum(s) => s.simplify(),
             _ => unreachable!(),
@@ -444,7 +480,7 @@ impl Product {
         if factors.len() == 1 {
             (coef, factors[0].clone())
         } else {
-            (coef, SymExpr::Product(Product{ factors }))
+            (coef, SymExpr::Product(Product::new(factors)))
         }
     }
 }
@@ -453,9 +489,16 @@ impl Product {
 pub struct Pow {
     pub base: Box<SymExpr>,
     pub exp: Box<SymExpr>,
+    pub simplified: bool,
 }
 
 impl Pow {
+    pub fn new(base: Box<SymExpr>, exp: Box<SymExpr>) -> Pow {
+        Pow { base, exp, simplified: false }
+    }
+    pub fn set_simplified(self, simplified: bool) -> Pow {
+        Pow { base: self.base, exp: self.exp, simplified }
+    }
     pub fn to_string(&self) -> String {
         format!("{}^{}", self.base.to_string(), self.exp.to_string())
     }
@@ -468,16 +511,16 @@ impl Pow {
     fn simplify_children(self) -> Pow {
         let base = Box::new(self.base.simplify());
         let exp = Box::new(self.exp.simplify());
-        Pow { base, exp }
+        Pow::new(base, exp)
     }
     fn flatten(self) -> Pow {
         match *self.base {
             SymExpr::Pow(p) => {
                 let base = Box::new(p.base.simplify());
                 let exp = Box::new(self.exp.mul(*p.exp).simplify());
-                Pow {base, exp}
+                Pow::new(base, exp)
             }
-            base => Pow { base: Box::new(base), exp: self.exp }
+            base => Pow::new(Box::new(base), self.exp),
         }
     }
     fn expand_or_eval(self) -> SymExpr {
@@ -489,15 +532,20 @@ impl Pow {
             (expr, SymExpr::Z(exp)) => {
                 let exp = exp.try_into().expect("Exponent too large.");
                 let factors = vec![expr.clone(); exp];
-                Product { factors }.simplify()
+                Product::new(factors).simplify()
             }
             _ => SymExpr::Pow(self)
         }
     }
     pub fn simplify(self) -> SymExpr {
+        if self.simplified {
+            return SymExpr::Pow(self);
+        }
+
         let pow = self
             .simplify_children()
-            .flatten();
+            .flatten()
+            .set_simplified(true);
 
         if pow.base.is_one() {
             return SymExpr::Z(BigInt::one());

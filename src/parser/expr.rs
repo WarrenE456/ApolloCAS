@@ -122,7 +122,7 @@ impl Exp {
     pub fn to_sym(&self) -> Result<SymExpr, String> {
         let base = self.base.to_sym().map(|v| Box::new(v))?;
         let exp = self.exp.to_sym().map(|v| Box::new(v))?;
-        Ok(SymExpr::Pow(Pow {base, exp}))
+        Ok(SymExpr::Pow(Pow::new(base, exp)))
     }
 }
 
@@ -147,14 +147,14 @@ impl Binary {
             };
             terms.push(expr); 
         }
-        Ok(SymExpr::Sum(Sum { terms }))
+        Ok(SymExpr::Sum(Sum::new(terms)))
     }
     fn prod_to_sym(&self) -> Result<SymExpr, String> {
         let mut factors = Vec::new();
         for operand in self.operands.iter() {
             factors.push(operand.to_sym()?); 
         }
-        Ok(SymExpr::Product(Product { factors }))
+        Ok(SymExpr::Product(Product::new(factors)))
     }
     pub fn to_sym(&self) -> Result<SymExpr, String> {
         use crate::scanner::tok::TokType;

@@ -27,6 +27,7 @@ use mem::gc::GC;
 * classes
 * <c-d> to interupt
 * exp for sym non sym
+* better expansion algorithm
 *
 */
 
