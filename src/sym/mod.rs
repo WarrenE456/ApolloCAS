@@ -186,6 +186,15 @@ impl SymExpr {
             _ => false
         }
     }
+    pub fn gcd(&self, other: &SymExpr) -> Result<SymExpr, String> {
+        use crate::runtime::val::bin_gcd;
+        match (self, other) {
+            (SymExpr::Z(a), SymExpr::Z(b)) => {
+                Ok(SymExpr::Z(bin_gcd(&a.clone(), &b.clone())))
+            }
+            _ => todo!()
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

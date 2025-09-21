@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::runtime::*;
 use crate::runtime::val::Num;
-use crate::mem::heap::{Iter, Range};
+use crate::mem::heap::{Iter, Range, HeapPin};
 
 // TODO inverse trig and other other asortment of other asortments of other assortermentnetms... of functions
 // round floor ceil
@@ -395,9 +395,24 @@ impl BuiltIn {
 
         match (i.expr(&c.args[0])?, i.expr(&c.args[1])?) {
             (Val::Num(a), Val::Num(b)) => Ok(Val::Num(Num::gcd(a, b))),
-            (Val::Sym(a), Val::Sym(b)) => todo!(),
-            (Val::Sym(a), b)
-            | (b, Val::Sym(a)) => todo!(),
+            (Val::Sym(a), Val::Sym(b)) => {
+                i.heap.gcd(a, b)
+                    .map_err(|msg| Error::from_call(msg, c))
+                    .map(|v| Ok(Val::Sym(i.heap.alloc(HeapVal::Sym(v)))))?
+            } 
+            (Val::Sym(a), Val::Num(b))
+            | (Val::Num(b), Val::Sym(a)) => {
+                let b = i.heap.alloc(HeapVal::Sym(b.to_sym()));
+
+                let pin = HeapPin::new(b, &i.heap);
+
+                let gcd = i.heap.gcd(a, b)
+                    .map_err(|msg| Error::from_call(msg, c))
+                    .map(|v| Ok(Val::Sym(i.heap.alloc(HeapVal::Sym(v)))));
+
+                drop(pin);
+                gcd?
+            }
             (a, b) => {
                 let msg = format!(
                     "Cannot take the gcd of values of type {} and {}.",

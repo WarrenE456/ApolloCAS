@@ -252,6 +252,18 @@ impl Heap {
             HeapVal::Sym(_) => todo!(),
         }
     }
+    pub fn gcd(&self, a: u64, b: u64) -> Result<SymExpr, String> {
+        let reader = self.mem.read().unwrap();
+        let a = match reader.get(&a).unwrap() {
+            HeapVal::Sym(s) => s,
+            _ => unreachable!(),
+        };
+        let b = match reader.get(&b).unwrap() {
+            HeapVal::Sym(s) => s,
+            _ => unreachable!(),
+        };
+        a.gcd(b)
+    }
     pub fn call(&self, id: u64, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         let f = {
             let reader = self.mem.try_read().unwrap();
@@ -280,5 +292,23 @@ impl Heap {
         self.mem.try_write().unwrap().insert(addr,val);
         self.marks.write().unwrap().insert(addr, false);
         addr
+    }
+}
+
+pub struct HeapPin<'a> {
+    addr: u64,
+    h: &'a Heap,
+}
+
+impl<'a> HeapPin<'a> {
+    pub fn new(addr: u64, h: &'a Heap) -> HeapPin<'a> {
+        h.add_pin(addr);
+        HeapPin { addr, h }
+    }
+}
+
+impl<'a> Drop for HeapPin<'a> {
+    fn drop(&mut self) {
+        self.h.rm_pin(self.addr)
     }
 }

@@ -9,7 +9,7 @@ use crate::scanner::tok::Tok;
 use crate::sym::*;
 
 use num_bigint::{ToBigInt, BigInt};
-use num_traits::Signed;
+use num_traits::{Signed, FromPrimitive};
 
 #[derive(Clone, Debug, Copy)]
 pub enum Num {
@@ -101,7 +101,7 @@ impl Num {
             (Num::Float(a), Num::Float(b)) => Num::Float(Self::float_gcd(a, b)), 
             (Num::Float(a), Num::Int(b))
             | (Num::Int(b), Num::Float(a)) => Num::Float(Self::float_gcd(a, b as f64)),
-            (Num::Int(a), Num::Int(b)) => Num::Int(bin_gcd(a, b, 0, 2)),
+            (Num::Int(a), Num::Int(b)) => Num::Int(bin_gcd(&a, &b)),
         }
     }
     fn float_gcd(a: f64, b: f64) -> f64 {
@@ -113,8 +113,12 @@ impl Num {
     }
 }
 
-trait Even {
+pub trait Even {
     fn is_even(&self) -> bool;
+}
+
+pub trait Abs {
+    fn take_abs(&self) -> Self;
 }
 
 impl Even for BigInt {
@@ -129,38 +133,48 @@ impl Even for i64 {
     }
 }
 
-fn bin_gcd<T>(a: T, b: T, zero: T, two: T) -> T
-where
-    T: PartialEq + Even + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Ord + Copy + Signed
-{
-    bin_gcd_aux(a.abs(), b.abs(), zero, two)
+impl Abs for i64 {
+    fn take_abs(&self) -> Self {
+        self.abs()
+    }
 }
 
-fn bin_gcd_aux<T>(a: T, b: T, zero: T, two: T) -> T
+impl Abs for BigInt {
+    fn take_abs(&self) -> Self {
+        self.abs()
+    }
+}
+
+// Remind me to never use generics again
+pub fn bin_gcd<T>(a: &T, b: &T) -> T
 where
-    T: PartialEq + Even + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Ord + Copy
+    T: Even + Abs + PartialEq + Ord + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + FromPrimitive,
 {
-    if a == zero {
-        b
+    let a_abs = a.take_abs();
+    let b_abs = b.take_abs();
+    bin_gcd_aux(a_abs, b_abs)
+}
+
+fn bin_gcd_aux<T>(a: T, b: T) -> T
+where
+    T: Even + PartialEq + Ord + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + FromPrimitive,
+{
+    if a == FromPrimitive::from_i32(0).unwrap() {
+        return b;
     }
-    else if b == zero {
-        a
+    if b == FromPrimitive::from_i32(0).unwrap() {
+        return a;
     }
-    else {
-        let a_even = a.is_even();
-        let b_even = b.is_even();
-        match (a_even, b_even) {
-            (true, true) => two * bin_gcd_aux(a / two, b / two, zero, two),
-            (true, false) => bin_gcd_aux(a / two, b, zero, two),
-            (false, true) => bin_gcd_aux(a, b / two, zero, two),
-            (false , false) => {
-                let (max, min) = if a > b {
-                    (a, b)
-                } else {
-                    (b, a)
-                };
-                bin_gcd_aux(min, max - min, zero, two)
-            }
+
+    let two: T = FromPrimitive::from_i32(2).unwrap();
+
+    match (a.is_even(), b.is_even()) {
+        (true, true) => two.clone() * bin_gcd_aux(a / two.clone(), b / two),
+        (true, false) => bin_gcd_aux(a / two, b),
+        (false, true) => bin_gcd_aux(a, b / two),
+        (false, false) => {
+            let (max, min) = if a > b { (a, b) } else { (b, a) };
+            bin_gcd_aux(min.clone(), max - min)
         }
     }
 }

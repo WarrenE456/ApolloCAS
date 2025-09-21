@@ -4,7 +4,7 @@ pub mod builtin;
 use crate::error::{Error, Special};
 use crate::parser::statement::*;
 use crate::scanner::tok::{Tok, TokType};
-use crate::mem::heap::{Heap, HeapVal, HeapIter, Iter};
+use crate::mem::heap::{Heap, HeapVal, HeapIter, Iter, HeapPin};
 use crate::mem::env::Env;
 use crate::runtime::val::{Val, FnVal};
 use crate::parser::expr::*;
@@ -462,13 +462,16 @@ impl<'a> Interpreter {
                 });
             }
         };
-        self.heap.add_pin(addr);
+
+        let pin = HeapPin::new(addr, &self.heap);
+
         while let Some(v) = self.heap.next_iter(addr) {
             let for_scope = Interpreter::from(self);
             for_scope.env.put(f.identifier.lexeme.clone(), v, &self.heap);
             for_scope.block(&f.body)?;
         }
-        self.heap.rm_pin(addr);  
+
+        drop(pin);
         Ok(())
     }
     pub fn interpret(&'a self, stmt: &Statement) -> Result<Option<Val>, Error> {

@@ -26,6 +26,7 @@ use mem::gc::GC;
 * special characters in strings
 * classes
 * <c-d> to interupt
+* exp for sym non sym
 *
 */
 
