@@ -15,6 +15,7 @@ pub enum SymExpr {
     Product(Product),
     Pow(Pow),
     Symbol(String),
+    Polynomial(Polynomial),
 }
 
 impl SymExpr {
@@ -28,6 +29,7 @@ impl SymExpr {
             SymExpr::Sum(s) => s.simplify(),
             SymExpr::Product(p) => p.simplify(),
             SymExpr::Pow(p) => p.simplify(),
+            SymExpr::Polynomial(p) => SymExpr::Polynomial(p),
         }
     }
     // TODO parenthesis when child op has lower precedence than parent op
@@ -38,6 +40,7 @@ impl SymExpr {
             SymExpr::Sum(s) => s.to_string(),
             SymExpr::Product(t) => t.to_string(),
             SymExpr::Pow(p) => p.to_string(),
+            SymExpr::Polynomial(p) => p.to_string(),
         }
     }
     pub fn kind_name(&self) -> String {
@@ -47,6 +50,7 @@ impl SymExpr {
             SymExpr::Sum(_) => String::from("sum of expressions"),
             SymExpr::Product(_) => String::from("product of expressions"),
             SymExpr::Pow(_)  => String::from("exponential"),
+            SymExpr::Polynomial(_) => String::from("polynomial"),
         }
     }
     pub fn distribute(self, sum: Sum) -> Sum {
@@ -84,6 +88,7 @@ impl SymExpr {
             SymExpr::Pow(_) => 2,
             SymExpr::Product(_) => 3,
             SymExpr::Sum(_) => 4,
+            SymExpr::Polynomial(_) => unreachable!(),
         }
     }
     /*
@@ -165,6 +170,10 @@ impl SymExpr {
                 } else {
                     s.terms[0].sum_deg() // assumes s is simplified
                 }
+            }
+            SymExpr::Polynomial(p) => {
+                let sum = p.terms.iter().fold(BigInt::ZERO, |acc, t| acc + t.deg.clone());
+                SymExpr::Z(sum)
             }
         }
     }
@@ -500,5 +509,27 @@ impl Pow {
         } else {
             pow.expand_or_eval()
         }
+    }
+}
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct Term {
+    pub deg: BigInt,
+    pub coef: SymExpr,
+}
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct Polynomial {
+    pub var: String,
+    pub terms: Vec<Term>,
+}
+
+impl Polynomial {
+    pub fn to_string(&self) -> String {
+        self.terms
+            .iter()
+            .map(|t| format!("{} {}^{}", t.coef.to_string(), self.var, t.deg))
+            .collect::<Vec<_>>()
+            .join(" + ")
     }
 }
