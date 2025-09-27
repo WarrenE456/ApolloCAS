@@ -214,6 +214,34 @@ impl SymExpr {
             _ => todo!()
         }
     }
+    pub fn to_term(self, var: &String) -> Result<Term, String> {
+        match self {
+            SymExpr::Z(z) => Ok(Term::new(SymExpr::Z(z), BigInt::ZERO)),
+            SymExpr::Symbol(s) => if s == *var {
+                Ok(Term::new(SymExpr::Z(BigInt::one()), BigInt::one()))
+            } else {
+                Ok(Term::new(SymExpr::Symbol(s), BigInt::ZERO))
+            }
+            SymExpr::Product(p) => p.to_term(var),
+            SymExpr::Pow(p) => p.to_term(var),
+            SymExpr::Sum(s) => Err(format!("Attempt to turn sum '{}' into a single term.", s.to_string())),
+            SymExpr::Polynomial(_) => unreachable!(),
+        }
+    }
+    pub fn to_polynomial(self, var: &String) -> Result<Polynomial, String> {
+        match self.simplify() {
+            SymExpr::Sum(s) => Ok(s.to_polynomial(var)?),
+            SymExpr::Polynomial(p) => if *var == p.var {
+                Ok(p)
+            } else {
+                Err(format!(
+                    "Polynomial '{}' in {} cannot be converted to a polynomial in {}.",
+                    p.to_string(), p.var, var
+                ))
+            }
+            other => Ok(other.to_term(var)?.to_monomial(var.to_owned())),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -318,6 +346,13 @@ impl Sum {
             .iter().map(|expr| expr.to_string())
             .collect::<Vec<_>>()
             .join(&String::from(" + "))
+    }
+    pub fn to_polynomial(self, var: &String) -> Result<Polynomial, String> {
+        let mut terms = Vec::new();
+        for term in self.terms {
+            terms.push(term.to_term(var)?);
+        }
+        Ok(Polynomial::new(var.to_owned(), terms))
     }
 }
 
@@ -483,6 +518,13 @@ impl Product {
             (coef, SymExpr::Product(Product::new(factors)))
         }
     }
+    pub fn to_term(self, var: &String) -> Result<Term, String> {
+        let mut term = Term::new(SymExpr::Z(BigInt::one()), BigInt::one());
+        for factor in self.factors {
+            term = term.mul(factor.to_term(var)?);
+        }
+        Ok(term)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -558,12 +600,50 @@ impl Pow {
             pow.expand_or_eval()
         }
     }
+    pub fn to_term(self, var: &String) -> Result<Term, String> {
+        match self.base.to_term(var)?{
+            Term { coef, deg } => {
+                if deg == BigInt::ZERO {
+                    let coef = SymExpr::Pow(Pow::new(Box::new(coef), self.exp));
+                    Ok(Term::new(coef, deg))
+                }
+                else {
+                    if let SymExpr::Z(n) = *self.exp {
+                        if n > BigInt::ZERO {
+                            Ok(Term::new(coef, deg * n))
+                        }
+                        else {
+                            Err(format!("Attempt to raise '{}' to negative integer '{}'.", var, n))
+                        }
+                    }
+                    else {
+                        Err(format!("Attempt to raise '{}' to non-integer exponent '{}'.", var, self.exp.to_string()))
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct Term {
-    pub deg: BigInt,
     pub coef: SymExpr,
+    pub deg: BigInt,
+}
+
+impl Term {
+    pub fn new(coef: SymExpr, deg: BigInt) -> Term {
+        Term { coef, deg }
+    }
+    pub fn mul(self, other: Term) -> Term {
+        Term::new(self.coef.add(other.coef), self.deg + other.deg)
+    }
+    pub fn to_string(&self, var: &String) -> String {
+        format!("{} {}^{}", self.coef.to_string(), var, self.deg)
+    }
+    pub fn to_monomial(self, var: String) -> Polynomial {
+        Polynomial::new(var, vec![self])
+    }
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -573,6 +653,9 @@ pub struct Polynomial {
 }
 
 impl Polynomial {
+    pub fn new(var: String, terms: Vec<Term>) -> Polynomial {
+        Polynomial { var, terms }
+    }
     pub fn to_string(&self) -> String {
         self.terms
             .iter()
