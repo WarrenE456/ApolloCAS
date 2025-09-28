@@ -39,7 +39,7 @@ impl SymExpr {
             SymExpr::Sum(s) => s.simplify(),
             SymExpr::Product(p) => p.simplify(),
             SymExpr::Pow(p) => p.simplify(),
-            SymExpr::Polynomial(p) => SymExpr::Polynomial(p),
+            SymExpr::Polynomial(p) => SymExpr::Polynomial(p.simplify()),
         }
     }
     // TODO parenthesis when child op has lower precedence than parent op
@@ -645,10 +645,49 @@ impl Term {
         Term::new(self.coef.mul(other.coef), self.deg + other.deg)
     }
     pub fn to_string(&self, var: &String) -> String {
-        format!("{} {}^{}", self.coef.to_string(), var, self.deg)
+        let mut s = String::new();
+        match &self.coef {
+            SymExpr::Z(z) => if *z != BigInt::one() {
+                s.push_str(&z.to_string());
+            }
+            else if self.deg == BigInt::ZERO {
+                s.push('1');
+            }
+            SymExpr::Sum(sum) => {
+                s.push('(');
+                s.push_str(&sum.to_string());
+                s.push(')');
+            }
+            other => {
+                s.push_str(&other.to_string());
+            }
+        }
+
+        if self.deg != BigInt::ZERO {
+            if s.len() > 0 {
+                s.push(' ');
+            }
+            if self.deg == BigInt::one() {
+                s.push_str(var);
+            } else {
+                s.push_str(&format!("{}^{}", var, self.deg.to_string()));
+            }
+        }
+
+        s
     }
     pub fn to_monomial(self, var: String) -> Polynomial {
         Polynomial::new(var, vec![self])
+    }
+    pub fn is_zero(&self) -> bool {
+        match &self.coef {
+            SymExpr::Z(z) => if *z == BigInt::ZERO {
+                true
+            } else {
+                false
+            }
+            _ => false,
+        }
     }
 }
 
@@ -656,32 +695,58 @@ impl Term {
 pub struct Polynomial {
     pub var: String,
     pub terms: Vec<Term>,
+    pub simplified: bool,
 }
 
 impl Polynomial {
     pub fn new(var: String, terms: Vec<Term>) -> Polynomial {
-        Polynomial { var, terms }
+        Polynomial { var, terms, simplified: false }
+    }
+    pub fn set_simplified(self, simplified: bool) -> Polynomial {
+        Polynomial {var: self.var, terms: self.terms, simplified }
+    }
+    fn collect_like_degree_terms(self) -> Polynomial {
+        let mut deg_coef = HashMap::new();
+        for term in self.terms {
+            let coef = deg_coef
+                .entry(term.deg)
+                .or_insert(SymExpr::Z(BigInt::ZERO));
+            *coef = std::mem::replace(coef, SymExpr::Z(BigInt::ZERO)).add(term.coef);
+        }
+
+        let mut terms = Vec::new();
+        for (deg, coef) in deg_coef.into_iter() {
+            terms.push(Term::new(coef, deg));
+        }
+        Polynomial::new(self.var, terms)
     }
     fn order_terms(mut self) -> Polynomial {
         self.terms.sort_by(|a, b| b.deg.cmp(&a.deg));
         self
     }
-    fn simplify_coef(self) -> Polynomial {
+    fn simplify_terms(self) -> Polynomial {
         let terms = self.terms
             .into_iter()
             .map(|t| Term::new(t.coef.simplify(), t.deg))
+            .filter(|t| !t.is_zero())
             .collect::<Vec<_>>();
         Polynomial::new(self.var, terms)
     }
     pub fn simplify(self) -> Polynomial {
         self
-            .simplify_coef()
+            .collect_like_degree_terms()
+            .simplify_terms()
             .order_terms()
+            .set_simplified(true)
     }
     pub fn to_string(&self) -> String {
+        if self.terms.len() == 0 {
+            return String::from("0");
+        }
+
         self.terms
             .iter()
-            .map(|t| format!("{} {}^{}", t.coef.to_string(), self.var, t.deg))
+            .map(|t| t.to_string(&self.var))
             .collect::<Vec<_>>()
             .join(" + ")
     }
