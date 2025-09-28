@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering::SeqCst;
 use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
 
-use crate::runtime::val::{Val, Num, FnVal, Type};
+use crate::runtime::val::{Val, Num, FnVal, Type, SymT};
 use crate::sym::SymExpr;
 use crate::parser::expr::Call;
 use crate::runtime::Interpreter;
@@ -283,6 +283,19 @@ impl Heap {
                 let param_t: Vec<Type> = f.params.iter().map(|(_, t)| t.clone()).collect();
                 Type::Fn(param_t, Box::new(f.return_t.clone()))
             }
+            _ => unreachable!()
+        }
+    }
+    pub fn type_sym(&self, id: u64) -> SymT {
+        let reader = self.mem.try_read().unwrap();
+        let v = reader.get(&id).unwrap();
+        match v {
+            HeapVal::Sym(s) => match s {
+                SymExpr::Z(_) => SymT::Z,
+                SymExpr::Symbol(_) => SymT::Symbol,
+                SymExpr::Polynomial(p) => SymT::Polynomial(p.var.clone()),
+                _ => SymT::Any,
+            },
             _ => unreachable!()
         }
     }

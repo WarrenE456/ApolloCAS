@@ -237,7 +237,7 @@ impl Val {
             Val::Str(_) => Type::Str,
             Val::Arr(_) => Type::Arr,
             Val::Char(_) => Type::Char,
-            Val::Sym(_) => Type::Sym(SymT::Any),
+            Val::Sym(s) => Type::Sym(h.type_sym(*s)),
         }
     }
     pub fn type_as_string(&self, h: &Heap) -> String {
@@ -295,12 +295,12 @@ impl Val {
     }
 }
 
-
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SymT {
     Any,
     Z,
     Symbol,
+    Polynomial(String),
 }
 
 impl SymT {
@@ -326,6 +326,14 @@ impl SymT {
                 SymExpr::Z(_) => Ok(sym),
                 _ => type_err!(),
             },
+            Polynomial(var) => match sym {
+                SymExpr::Polynomial(p) => if p.var == *var {
+                    Ok(SymExpr::Polynomial(p))
+                } else {
+                    Err(format!("Cannot coerce polynomial in '{}' to polynomial in '{}'.", p.var, var))
+                }
+                other => other.to_polynomial(var).map(|p| SymExpr::Polynomial(p)),
+            }
         }
     }
     fn to_string(&self) -> String {
@@ -333,6 +341,7 @@ impl SymT {
             SymT::Z => String::from("Z"),
             SymT::Any => String::from("Sym"),
             SymT::Symbol => String::from("Symbol"),
+            SymT::Polynomial(var) => format!("P[{}]", var),
         }
     }
 }
@@ -368,9 +377,7 @@ impl Type {
             Arr => String::from("Arr"),
             Char => String::from("Char"),
             Auto => String::from("Auto"),
-            Sym(SymT::Z) => String::from("Z"),
-            Sym(SymT::Any) => String::from("Sym"),
-            Sym(SymT::Symbol) => String::from("Symbol"),
+            Sym(s) => s.to_string(),
             Fn(param, ret) =>
                 format!("({} -> {})", param.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "), ret.to_string()),
             Iter => String::from("Iter"),

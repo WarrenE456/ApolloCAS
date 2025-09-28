@@ -14,7 +14,7 @@
 * 
 * block -> '\n'* '{' '\n'* (statement '\n'+)* '}' '\n'
 * inline_ret -> ':' '\n'? expr '\n'
-* type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | fn_t
+* type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | fn_t | ...
 * typed -> IDENTIFIER (':' type)?
 * fn_t -> '(' type ( ',' type )* '->' type ')'
 *
@@ -307,6 +307,33 @@ impl Parser {
         let _ = self.advance();
         Ok(Type::Fn(param_t, Box::new(return_t)))
     }
+    fn poly_t(&self, p: &Tok) -> Result<Type, Error> {
+        use crate::sym::SymExpr;
+        if p.lexeme == "P" {
+            self.expect(TokType::LBrac, String::from("Expected left bracet after type 'P' (e.g. P[x])."))?;
+            let lb = self.advance();
+            let expr = self
+                .expr()?
+                .to_sym()
+                .map_err(|msg| Error::from(msg, p, p))?;
+            let var = match expr {
+                SymExpr::Symbol(s) => s,
+                other => {
+                    let msg = format!(
+                        "Expected a symbol between the brackets, but found a(n) {}",
+                        other.kind_name()
+                    );
+                    return Err(Error::from(msg, lb, lb));
+                }
+            };
+            self.expect(TokType::RBrac, String::from("Expected right bracket after symbol (e.g. P[x])."))?;
+            let _ = self.advance();
+
+            Ok(Type::Sym(SymT::Polynomial(var)))
+        } else {
+            todo!()
+        }
+    }
     // type -> Any | Int | Float | Fn | BuiltIn | Bool | Unit | Str | Arr | Char | fn_t | *T...
     fn parse_type(&self) -> Result<Type, Error> {
         let next = self.advance();
@@ -326,6 +353,7 @@ impl Parser {
             SymbolT => Ok(Type::Sym(SymT::Symbol)),
             IterT => Ok(Type::Iter),
             LParen => self.fn_t(),
+            Identifier => self.poly_t(next),
             _ => {
                 let msg = String::from("Expected type here.");
                 Err(Error { special: None,
