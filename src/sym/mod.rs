@@ -27,8 +27,8 @@ impl SymExpr {
             SymExpr::Z(_) => self,
             SymExpr::Symbol(_) => self,
             SymExpr::Sum(s) => SymExpr::Sum(s.set_simplified(simplified)),
-            SymExpr::Product(_p) => todo!(),
-            SymExpr::Pow(_p) => todo!(),
+            SymExpr::Product(p) => SymExpr::Product(p.set_simplified(true)),
+            SymExpr::Pow(p) => SymExpr::Pow(p.set_simplified(true)),
             SymExpr::Polynomial(_) => self,
         }
     }
@@ -230,7 +230,7 @@ impl SymExpr {
     }
     pub fn to_polynomial(self, var: &String) -> Result<Polynomial, String> {
         match self.simplify() {
-            SymExpr::Sum(s) => Ok(s.to_polynomial(var)?),
+            SymExpr::Sum(s) => Ok(s.to_polynomial(var)?.simplify()),
             SymExpr::Polynomial(p) => if *var == p.var {
                 Ok(p)
             } else {
@@ -239,7 +239,7 @@ impl SymExpr {
                     p.to_string(), p.var, var
                 ))
             }
-            other => Ok(other.to_term(var)?.to_monomial(var.to_owned())),
+            other => Ok(other.to_term(var)?.to_monomial(var.to_owned()).simplify()),
         }
     }
 }
@@ -519,7 +519,7 @@ impl Product {
         }
     }
     pub fn to_term(self, var: &String) -> Result<Term, String> {
-        let mut term = Term::new(SymExpr::Z(BigInt::one()), BigInt::one());
+        let mut term = Term::new(SymExpr::Z(BigInt::one()), BigInt::ZERO);
         for factor in self.factors {
             term = term.mul(factor.to_term(var)?);
         }
@@ -613,11 +613,17 @@ impl Pow {
                             Ok(Term::new(coef, deg * n))
                         }
                         else {
-                            Err(format!("Attempt to raise '{}' to negative integer '{}'.", var, n))
+                            Err(format!(
+                                "Attempt to raise '{}' to negative integer '{}' in symexpr to polynomial conversion.",
+                                var, n
+                            ))
                         }
                     }
                     else {
-                        Err(format!("Attempt to raise '{}' to non-integer exponent '{}'.", var, self.exp.to_string()))
+                        Err(format!(
+                            "Attempt to raise '{}' to non-integer exponent '{}' in symexpr to polynomial conversion.",
+                            var, self.exp.to_string()
+                        ))
                     }
                 }
             }
@@ -636,7 +642,7 @@ impl Term {
         Term { coef, deg }
     }
     pub fn mul(self, other: Term) -> Term {
-        Term::new(self.coef.add(other.coef), self.deg + other.deg)
+        Term::new(self.coef.mul(other.coef), self.deg + other.deg)
     }
     pub fn to_string(&self, var: &String) -> String {
         format!("{} {}^{}", self.coef.to_string(), var, self.deg)
@@ -655,6 +661,22 @@ pub struct Polynomial {
 impl Polynomial {
     pub fn new(var: String, terms: Vec<Term>) -> Polynomial {
         Polynomial { var, terms }
+    }
+    fn order_terms(mut self) -> Polynomial {
+        self.terms.sort_by(|a, b| b.deg.cmp(&a.deg));
+        self
+    }
+    fn simplify_coef(self) -> Polynomial {
+        let terms = self.terms
+            .into_iter()
+            .map(|t| Term::new(t.coef.simplify(), t.deg))
+            .collect::<Vec<_>>();
+        Polynomial::new(self.var, terms)
+    }
+    pub fn simplify(self) -> Polynomial {
+        self
+            .simplify_coef()
+            .order_terms()
     }
     pub fn to_string(&self) -> String {
         self.terms

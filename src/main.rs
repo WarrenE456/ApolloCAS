@@ -17,7 +17,7 @@ use mem::gc::GC;
 
 /* TODO
 *
-* todo expr -> poly conversion
+* type casing fix
 * make fn types manditory
 * classes
 * ignore newlines inside parenthesis

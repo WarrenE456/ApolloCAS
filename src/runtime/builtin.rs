@@ -28,6 +28,7 @@ enum BuiltInT {
     Iter,
     Next,
     Gcd,
+    Poly
 }
 
 impl BuiltInT {
@@ -54,6 +55,7 @@ impl BuiltInT {
             Iter => "iter",
             Next => "next",
             Gcd => "gcd",
+            Poly => "poly",
         })
     }
 }
@@ -87,6 +89,7 @@ impl BuiltIn {
             "iter" => Iter,
             "next" => Next,
             "gcd" => Gcd,
+            "poly" => Poly,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -422,6 +425,28 @@ impl BuiltIn {
             }
         }
     }
+    pub fn poly(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() != 2 {
+            let msg = format!("'poly' expects two arguements, the polynomial and the variable which it is in.");
+            return Err(Error::from_call(msg, c));
+        }
+        let expr = c.args[0].to_sym()
+            .map_err(|msg| Error::from_call(msg, c))?;
+
+        let var = match c.args[1].to_sym() {
+            Ok(SymExpr::Symbol(var)) => var,
+            Err(msg) => return Err(Error::from_call(msg, c)),
+            _ => {
+                let msg = format!("Expected the second arguement of 'poly' to be a symbol.");
+                return Err(Error::from_call(msg, c));
+            }
+        };
+        let polynomial = expr.to_polynomial(&var)
+            .map_err(|msg| Error::from_call(msg, c))?;
+
+        let addr = i.heap.alloc(HeapVal::Sym(SymExpr::Polynomial(polynomial)));
+        Ok(Val::Sym(addr))
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -444,6 +469,7 @@ impl BuiltIn {
             Iter => Self::iter(c, i),
             Next => Self::next(c, i),
             Gcd => Self::gcd(c, i),
+            Poly => Self::poly(c, i),
             _ => self.basic(c, 1, i),
         }
     }
