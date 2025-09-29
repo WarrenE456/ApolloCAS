@@ -1,4 +1,4 @@
-use std::ops::{Mul, Div, Add, Sub};
+use std::ops::{Mul, Div, Add, Sub, Rem};
 
 use crate::mem::heap::{Heap, HeapVal};
 use crate::runtime::{Interpreter, builtin::BuiltIn};
@@ -177,6 +177,42 @@ where
             bin_gcd_aux(min.clone(), max - min)
         }
     }
+}
+
+pub trait IsZero {
+    fn is_zero(&self) -> bool;
+}
+
+impl IsZero for Polynomial {
+    fn is_zero(&self) -> bool {
+        if self.terms.len() == 0 {
+            true
+        }
+        else if self.terms.len() == 1 {
+            if let SymExpr::Z(z) = &self.terms[0].coef {
+                *z == BigInt::ZERO
+            } else {
+                false
+            }
+        }
+        else {
+            false
+        }
+    }
+}
+
+pub fn euclidean_gcd<T>(a: T, b: T) -> T
+where
+    T: PartialEq + for<'r> Rem<&'r T, Output = T> + IsZero + Clone
+{
+    let mut a = a;
+    let mut b = b;
+    while b.is_zero() {
+        let t = b;
+        b = a % &t;
+        a = t;
+    }
+    a
 }
 
 #[derive(Clone, Debug)]

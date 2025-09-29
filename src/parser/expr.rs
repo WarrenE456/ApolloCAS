@@ -141,7 +141,7 @@ impl Binary {
         let op = self.operators[0].t;
         for (i,operand) in self.operands.iter().enumerate() {
             let expr = if op == TokType::Minus && i > 0 {
-                Negate::negate_sym_expr(operand.to_sym()?)
+                Negate::negate_sym_expr(operand.to_sym()?)?
             } else {
                 operand.to_sym()?
             };
@@ -175,12 +175,12 @@ pub struct Negate {
 }
 
 impl Negate {
-    pub fn negate_sym_expr(symexpr: SymExpr) -> SymExpr {
+    pub fn negate_sym_expr(symexpr: SymExpr) -> Result<SymExpr, String> {
         let neg_one = SymExpr::Z(BigInt::from_biguint(Sign::Minus, BigUint::one()));
         SymExpr::mul(neg_one, symexpr)
     }
     pub fn to_sym(&self) -> Result<SymExpr, String> {
-        self.value.to_sym().map(|v| Negate::negate_sym_expr(v))
+        Negate::negate_sym_expr(self.value.to_sym()?)
     }
 }
 

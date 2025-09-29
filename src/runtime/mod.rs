@@ -42,7 +42,7 @@ impl<'a> Interpreter {
             _ => unreachable!(),
         }
     }
-    fn bin_sym(addr1: u64, addr2: u64, op: &Tok, h: &Heap) -> Val {
+    fn bin_sym(addr1: u64, addr2: u64, op: &Tok, h: &Heap) -> Result<Val, String> {
         // TODO improve performance
         let a = match h.get(addr1) {
             Some(HeapVal::Sym(s)) => s,
@@ -54,13 +54,13 @@ impl<'a> Interpreter {
         };
         use TokType::*;
         let expr = match op.t {
-            Plus => SymExpr::add(a, b),
-            Minus => SymExpr::add(a, Negate::negate_sym_expr(b)),
-            Star => SymExpr::mul(a, b),
+            Plus => SymExpr::add(a, b)?,
+            Minus => SymExpr::add(a, Negate::negate_sym_expr(b)?)?,
+            Star => SymExpr::mul(a, b)?,
             Slash => todo!(),
             _ => unreachable!(),
         };
-        Val::Sym(h.alloc(HeapVal::Sym(expr)))
+        Ok(Val::Sym(h.alloc(HeapVal::Sym(expr))))
     }
     fn binary(&self, b: &Binary) -> Result<Val, Error> {
         use TokType::*;
@@ -82,12 +82,14 @@ impl<'a> Interpreter {
                     _ => unreachable!(),
                 }
                 (Val::Sym(a), Val::Sym(b)) =>{
-                    result = Self::bin_sym(a, b, op, &self.heap);
+                    result = Self::bin_sym(a, b, op, &self.heap)
+                        .map_err(|msg| Error::from(msg, op, op))?;
                 }
                 (Val::Sym(a), Val::Num(b))
                 | (Val::Num(b), Val::Sym(a)) => {
                     let b = self.heap.alloc(HeapVal::Sym(b.to_sym()));
-                    result = Self::bin_sym(a, b, op, &self.heap);
+                    result = Self::bin_sym(a, b, op, &self.heap)
+                        .map_err(|msg| Error::from(msg, op, op))?;
                 }
                 (a, b) => {
                     let msg = format!(
@@ -153,8 +155,9 @@ impl<'a> Interpreter {
                 (a, b) => Num::Float(a.to_float().powf(b.to_float())),
             })),
             _ => {
-                let msg = format!("Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers.",
-                      base.type_as_string(&self.heap), power.type_as_string(&self.heap)
+                let msg = format!(
+                    "Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers and symbolic expressions.",
+                    base.type_as_string(&self.heap), power.type_as_string(&self.heap)
                 );
                 Err(Error { special: None, msg, col_start: e.op.col_start, col_end: e.op.col_end, line: e.op.line })
             }

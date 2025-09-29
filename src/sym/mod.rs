@@ -8,6 +8,12 @@ use std::str::FromStr;
 use std::collections::HashMap;
 use std::cmp::Ordering;
 
+impl Default for SymExpr {
+    fn default() -> Self {
+        SymExpr::Z(BigInt::default())
+    }
+}
+
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum SymExpr {
     Z(BigInt),
@@ -66,7 +72,7 @@ impl SymExpr {
     pub fn distribute(self, sum: Sum) -> Sum {
         let mut terms = Vec::new();
         for term in sum.terms.iter() {
-            let term = self.clone().mul(term.clone());
+            let term = self.clone().mul(term.clone()).unwrap();
             terms.push(term);
         }
         Sum::new(terms)
@@ -78,17 +84,33 @@ impl SymExpr {
             other => (BigInt::one(), other),
         }
     }
-    pub fn add(self, other: SymExpr) -> SymExpr {
-        match (self, other) {
+    pub fn add(self, other: SymExpr) -> Result<SymExpr, String> {
+        Ok(match (self, other) {
             (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a + b),
+            (SymExpr::Polynomial(a), SymExpr::Polynomial(b)) => {
+                SymExpr::Polynomial(a.add(b)?)
+            }
+            (SymExpr::Polynomial(a), b)
+            | (b, SymExpr::Polynomial(a)) => {
+                let var = a.var.clone();
+                SymExpr::Polynomial(a.add(b.to_polynomial(&var)?)?)
+            }
             (a, b) => SymExpr::Sum(Sum::new(vec![a, b]).flatten()),
-        }
+        })
     }
-    pub fn mul(self, other: SymExpr) -> SymExpr {
-        match (self, other) {
+    pub fn mul(self, other: SymExpr) -> Result<SymExpr, String> {
+        Ok(match (self, other) {
             (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a * b),
+            (SymExpr::Polynomial(a), SymExpr::Polynomial(b)) => {
+                SymExpr::Polynomial(a.mul(b)?)
+            }
+            (SymExpr::Polynomial(a), b)
+            | (b, SymExpr::Polynomial(a)) => {
+                let var = a.var.clone();
+                SymExpr::Polynomial(a.mul(b.to_polynomial(&var)?)?)
+            }
             (a, b) => SymExpr::Product(Product::new(vec![a, b]).flatten()),
-        }
+        })
     }
     // Value for ordering differient kinds
     pub fn kind_value(&self) -> usize {
@@ -173,7 +195,7 @@ impl SymExpr {
             SymExpr::Symbol(_) => SymExpr::Z(BigInt::one()),
             SymExpr::Pow(p) => *p.exp.clone(),
             SymExpr::Product(p) => p.factors.iter()
-                .fold(SymExpr::Z(BigInt::ZERO), |acc, x| acc.add(x.sum_deg())),
+                .fold(SymExpr::Z(BigInt::ZERO), |acc, x| acc.add(x.sum_deg()).unwrap()),
             SymExpr::Sum(s) => {
                 if s.terms.len() == 0 {
                     unreachable!()
@@ -421,7 +443,7 @@ impl Product {
         match (entry, a) {
             (SymExpr::Z(n), SymExpr::Z(nn)) => *n = n.clone() + nn,
             (a, b) => {
-                *a = a.clone().add(b);
+                *a = a.clone().add(b).unwrap();
             }
         }
     }
@@ -559,7 +581,7 @@ impl Pow {
         match *self.base {
             SymExpr::Pow(p) => {
                 let base = Box::new(p.base.simplify());
-                let exp = Box::new(self.exp.mul(*p.exp).simplify());
+                let exp = Box::new(self.exp.mul(*p.exp).unwrap().simplify());
                 Pow::new(base, exp)
             }
             base => Pow::new(Box::new(base), self.exp),
@@ -631,7 +653,7 @@ impl Pow {
     }
 }
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Default)]
 pub struct Term {
     pub coef: SymExpr,
     pub deg: BigInt,
@@ -642,7 +664,7 @@ impl Term {
         Term { coef, deg }
     }
     pub fn mul(self, other: Term) -> Term {
-        Term::new(self.coef.mul(other.coef), self.deg + other.deg)
+        Term::new(self.coef.mul(other.coef).unwrap(), self.deg + other.deg)
     }
     pub fn to_string(&self, var: &String) -> String {
         let mut s = String::new();
@@ -711,7 +733,7 @@ impl Polynomial {
             let coef = deg_coef
                 .entry(term.deg)
                 .or_insert(SymExpr::Z(BigInt::ZERO));
-            *coef = std::mem::replace(coef, SymExpr::Z(BigInt::ZERO)).add(term.coef);
+            *coef = std::mem::take(coef).add(term.coef).unwrap();
         }
 
         let mut terms = Vec::new();
@@ -749,5 +771,31 @@ impl Polynomial {
             .map(|t| t.to_string(&self.var))
             .collect::<Vec<_>>()
             .join(" + ")
+    }
+    fn compatible(&self, other: &Polynomial) -> Result<(), String> {
+        if self.var == other.var {
+            Ok(())
+        } else {
+            Err(String::from("Polynomials must be in the same variable to perform operations on them."))
+        }
+    }
+    pub fn add(mut self, other: Polynomial) -> Result<Polynomial, String> {
+        self.compatible(&other)?;
+        self.terms.reserve(other.terms.len());
+        for term in other.terms {
+            self.terms.push(term);
+        }
+        Ok(self.simplify())
+    }
+    pub fn mul(self, other: Polynomial) -> Result<Polynomial, String> {
+        self.compatible(&other)?;
+        let mut terms = Vec::new();
+        terms.reserve(self.terms.len() * other.terms.len());
+        for a in &self.terms {
+            for b in &other.terms {
+                terms.push(a.clone().mul(b.clone()))
+            }
+        }
+        Ok(Polynomial::new(self.var, terms).simplify())
     }
 }

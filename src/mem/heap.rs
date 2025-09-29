@@ -208,7 +208,7 @@ impl Heap {
         let sym = mem.get_mut(&addr).unwrap();
         match sym {
             HeapVal::Sym(s) => {
-                *s = std::mem::replace(s, SymExpr::Symbol(String::new())).simplify();
+                *s = std::mem::take(s).simplify();
             }
             _ => panic!("Cannot call simplify_sym on non-sym"),
         }
