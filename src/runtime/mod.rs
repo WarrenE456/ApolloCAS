@@ -9,7 +9,7 @@ use crate::mem::env::Env;
 use crate::runtime::val::{Val, FnVal};
 use crate::parser::expr::*;
 use crate::runtime::{builtin::BuiltIn, val::{Num, Type}};
-use crate::sym::SymExpr;
+use crate::sym::{SymExpr, Pow};
 
 use std::sync::Arc;
 
@@ -154,9 +154,31 @@ impl<'a> Interpreter {
                 }
                 (a, b) => Num::Float(a.to_float().powf(b.to_float())),
             })),
+            (Val::Sym(a), Val::Sym(b)) => {
+                let a = match self.heap.get(*a).unwrap() {
+                    HeapVal::Sym(s) => s,
+                    _ => unreachable!(),
+                };
+                let b = match self.heap.get(*b).unwrap() {
+                    HeapVal::Sym(s) => s,
+                    _ => unreachable!(),
+                };
+                let pow = SymExpr::Pow(Pow::new(Box::new(a), Box::new(b))).simplify();
+                Ok(Val::Sym(self.heap.alloc(HeapVal::Sym(pow))))
+            }
+            (Val::Sym(a), Val::Num(b))
+            | (Val::Num(b), Val::Sym(a)) => {
+                let a = match self.heap.get(*a).unwrap() {
+                    HeapVal::Sym(s) => s,
+                    _ => unreachable!(),
+                };
+                let b = b.to_sym();
+                let pow = SymExpr::Pow(Pow::new(Box::new(a), Box::new(b))).simplify();
+                Ok(Val::Sym(self.heap.alloc(HeapVal::Sym(pow))))
+            }
             _ => {
                 let msg = format!(
-                    "Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers and symbolic expressions.",
+                    "Attempt to raise a {} to the power of a {}. The exponent operator is only valid on numbers or symbolic expressions.",
                     base.type_as_string(&self.heap), power.type_as_string(&self.heap)
                 );
                 Err(Error { special: None, msg, col_start: e.op.col_start, col_end: e.op.col_end, line: e.op.line })

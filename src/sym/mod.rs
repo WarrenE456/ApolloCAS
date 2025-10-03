@@ -247,7 +247,7 @@ impl SymExpr {
             SymExpr::Product(p) => p.to_term(var),
             SymExpr::Pow(p) => p.to_term(var),
             SymExpr::Sum(s) => Err(format!("Attempt to turn sum '{}' into a single term.", s.to_string())),
-            SymExpr::Polynomial(_) => unreachable!(),
+            SymExpr::Polynomial(p) => Err(format!("Attempt to turn polynomial '{}' into a single term.", p.to_string())),
         }
     }
     pub fn to_polynomial(self, var: &String) -> Result<Polynomial, String> {
@@ -399,7 +399,7 @@ impl Product {
     }
     fn distribute_aux(mut self) -> SymExpr {
         assert!(self.factors.len() != 0);
-        self.factors.reverse();
+        // self.factors.reverse(); commenting this out, if things break check here
         let mut expr = self.factors.pop().unwrap();
         while let Some(next_expr) = self.factors.pop() {
             expr = match (expr, next_expr) {
@@ -410,6 +410,7 @@ impl Product {
                 (other, SymExpr::Sum(s)) => {
                     SymExpr::Sum(other.distribute(s))
                 }
+                (SymExpr::Polynomial
                 (other1, other2) => {
                     let factors = vec![other1, other2];
                     SymExpr::Product(Product::new(factors).flatten())

@@ -17,6 +17,7 @@ use mem::gc::GC;
 
 /* TODO
 *
+* poly((x+1)^a, x)
 * type casing fix
 * make fn types manditory
 * classes
