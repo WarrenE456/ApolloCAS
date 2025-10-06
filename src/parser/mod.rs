@@ -155,7 +155,7 @@ impl Parser {
             }
             TokType::LBrac => self.arr(),
             _ => return Err(Error {
-                msg: format!("Expected a number or variable, instead found {}.", lexeme),
+                msg: format!("Expected a primary expression, instead found {}.", lexeme),
                 line: next.line, col_start: next.col_start, col_end: next.col_end,
                 special: None,
             }),
