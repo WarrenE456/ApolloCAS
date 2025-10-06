@@ -598,7 +598,7 @@ impl Pow {
             }
             (SymExpr::Polynomial(b), SymExpr::Z(p)) => {
                 let exp = p.try_into().expect("Exponent too large.");
-                SymExpr::Polynomial(b.clone().pow(exp).unwrap())    // TODO actual error handling
+                SymExpr::Polynomial(b.clone().pow(exp))
             }
             (expr, SymExpr::Z(exp)) => {
                 let exp = exp.try_into().expect("Exponent too large.");
@@ -852,28 +852,28 @@ impl Polynomial {
             Self::partial_fact(n, k) / Self::fact(k)
         }
     }
-    pub fn binomial_expansion(var: String, a: Term, b: Term, deg: u32) -> Result<Polynomial, String> {
+    pub fn binomial_expansion(var: String, a: Term, b: Term, deg: u32) -> Polynomial {
         let mut terms = Vec::new();
         for k in 0..=deg {
             let a_part = a.clone().pow(deg - k);
             let b_part = b.clone().pow(k);
             let coef = SymExpr::Z(Self::n_choose_k(deg, k));
-            println!("deg: {}, k: {}, coef: {}", deg, k, coef.to_string());
             let next_term = a_part.mul(b_part).mul_coef(coef);
             terms.push(next_term);
         }
-        Ok(Polynomial::new(var, terms).simplify())
+        Polynomial::new(var, terms).simplify()
     }
-    pub fn pow(mut self, exp: u32) -> Result<Polynomial, String> {
+    pub fn pow(mut self, exp: u32) -> Polynomial {
         if exp == 0 {
-            return Ok(Polynomial::one(self.var));
+            return Polynomial::one(self.var);
         }
-        if self.terms.len() == 2 {
-            let a = std::mem::take(&mut self.terms[0]);
-            let b = std::mem::take(&mut self.terms[1]);
-
-            return Self::binomial_expansion(self.var, a, b, exp);
+        else if exp == 1 {
+            return self;
         }
+        else if self.terms.len() == 2 {
+            let b = self.terms.pop().unwrap();
+            let a = self.terms.pop().unwrap();
+            return Self::binomial_expansion(self.var, a.clone(), b.clone(), exp);        }
 
         self = self.simplify();
         let mut result = self.clone();
@@ -883,6 +883,7 @@ impl Polynomial {
                 Err(_) => unreachable!(),
             }
         }
-        Ok(result.simplify())
+
+        result.simplify()
     }
 }
