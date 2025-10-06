@@ -28,7 +28,8 @@ enum BuiltInT {
     Iter,
     Next,
     Gcd,
-    Poly
+    Poly,
+    Treeify,
 }
 
 impl BuiltInT {
@@ -56,6 +57,7 @@ impl BuiltInT {
             Next => "next",
             Gcd => "gcd",
             Poly => "poly",
+            Treeify => "treeify",
         })
     }
 }
@@ -90,6 +92,7 @@ impl BuiltIn {
             "next" => Next,
             "gcd" => Gcd,
             "poly" => Poly,
+            "treeify" => Treeify,
             _ => return None,
         };
         Some(BuiltIn { t })
@@ -447,6 +450,28 @@ impl BuiltIn {
         let addr = i.heap.alloc(HeapVal::Sym(SymExpr::Polynomial(polynomial)));
         Ok(Val::Sym(addr))
     }
+    pub fn treeify(c: &Call, i: &Interpreter) -> Result<Val, Error> {
+        if c.args.len() > 1 {
+            let msg = format!("Treeify only expects one argument, a symbolic expression.");
+            return Err(Self::gen_error(msg, c));
+        }
+
+        let val = i.expr(&c.args[0])?;
+        let err = Self::gen_error(
+            format!("Attempt to treeify value of non-symbolic type {}.", val.type_as_string(&i.heap)),
+            c
+        );
+        match val {
+            Val::Sym(s) => match i.heap.get(s).unwrap() {
+                HeapVal::Sym(s) => match s {
+                    SymExpr::Polynomial(p) => Ok(p.to_tree().to_val(&i.heap)),
+                    other => Ok(other.to_val(&i.heap)),
+                }
+                _ => Err(err)
+            }
+            _ => Err(err)
+        }
+    }
     pub fn call(&self, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         use BuiltInT::*;
         match self.t {
@@ -470,6 +495,7 @@ impl BuiltIn {
             Next => Self::next(c, i),
             Gcd => Self::gcd(c, i),
             Poly => Self::poly(c, i),
+            Treeify => Self::treeify(c, i),
             _ => self.basic(c, 1, i),
         }
     }

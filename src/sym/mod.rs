@@ -8,6 +8,9 @@ use std::str::FromStr;
 use std::collections::HashMap;
 use std::cmp::Ordering;
 
+use crate::mem::heap::{Heap, HeapVal};
+use crate::runtime::val::Val;
+
 impl Default for SymExpr {
     fn default() -> Self {
         SymExpr::Z(BigInt::default())
@@ -72,7 +75,7 @@ impl SymExpr {
     pub fn distribute(self, sum: Sum) -> Sum {
         let mut terms = Vec::new();
         for term in sum.terms.iter() {
-            let term = self.clone().mul(term.clone()).unwrap();
+            let term = self.clone().mul(term.clone());
             terms.push(term);
         }
         Sum::new(terms)
@@ -84,33 +87,31 @@ impl SymExpr {
             other => (BigInt::one(), other),
         }
     }
-    pub fn add(self, other: SymExpr) -> Result<SymExpr, String> {
-        Ok(match (self, other) {
+    pub fn add(self, other: SymExpr) -> SymExpr {
+        match (self, other) {
             (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a + b),
             (SymExpr::Polynomial(a), SymExpr::Polynomial(b)) => {
-                SymExpr::Polynomial(a.add(b)?)
+                a.add(b)
             }
             (SymExpr::Polynomial(a), b)
             | (b, SymExpr::Polynomial(a)) => {
-                let var = a.var.clone();
-                SymExpr::Polynomial(a.add(b.to_polynomial(&var)?)?)
+                b.add(a.to_tree())
             }
             (a, b) => SymExpr::Sum(Sum::new(vec![a, b]).flatten()),
-        })
+        }
     }
-    pub fn mul(self, other: SymExpr) -> Result<SymExpr, String> {
-        Ok(match (self, other) {
+    pub fn mul(self, other: SymExpr) -> SymExpr {
+        match (self, other) {
             (SymExpr::Z(a), SymExpr::Z(b)) => SymExpr::Z(a * b),
             (SymExpr::Polynomial(a), SymExpr::Polynomial(b)) => {
-                SymExpr::Polynomial(a.mul(b)?)
+                a.mul(b)
             }
             (SymExpr::Polynomial(a), b)
             | (b, SymExpr::Polynomial(a)) => {
-                let var = a.var.clone();
-                SymExpr::Polynomial(a.mul(b.to_polynomial(&var)?)?)
+                b.mul(a.to_tree())
             }
             (a, b) => SymExpr::Product(Product::new(vec![a, b]).flatten()),
-        })
+        }
     }
     // Value for ordering differient kinds
     pub fn kind_value(&self) -> usize {
@@ -195,7 +196,7 @@ impl SymExpr {
             SymExpr::Symbol(_) => SymExpr::Z(BigInt::one()),
             SymExpr::Pow(p) => *p.exp.clone(),
             SymExpr::Product(p) => p.factors.iter()
-                .fold(SymExpr::Z(BigInt::ZERO), |acc, x| acc.add(x.sum_deg()).unwrap()),
+                .fold(SymExpr::Z(BigInt::ZERO), |acc, x| acc.add(x.sum_deg())),
             SymExpr::Sum(s) => {
                 if s.terms.len() == 0 {
                     unreachable!()
@@ -263,6 +264,9 @@ impl SymExpr {
             }
             other => Ok(other.to_term(var)?.to_monomial(var.to_owned()).simplify()),
         }
+    }
+    pub fn to_val(self, h: &Heap) -> Val {
+        Val::Sym(h.alloc(HeapVal::Sym(self)))
     }
 }
 
@@ -411,7 +415,7 @@ impl Product {
                     SymExpr::Sum(other.distribute(s))
                 }
                 (SymExpr::Polynomial(a), SymExpr::Polynomial(b)) => {
-                    SymExpr::Polynomial(a.mul(b).unwrap()) // TODO error handling
+                    a.mul(b)
                 }
                 (other1, other2) => {
                     let factors = vec![other1, other2];
@@ -446,7 +450,7 @@ impl Product {
         match (entry, a) {
             (SymExpr::Z(n), SymExpr::Z(nn)) => *n = n.clone() + nn,
             (a, b) => {
-                *a = a.clone().add(b).unwrap();
+                *a = a.clone().add(b);
             }
         }
     }
@@ -483,9 +487,9 @@ impl Product {
                 else if *z == BigInt::one() {
                     factors.push(base);
                 } else {
-                    factors.push(SymExpr::Pow(Pow::new(Box::new(base), Box::new(exp))));
+                    factors.push(SymExpr::Pow(Pow::new(base, exp)));
                 }
-                _ => factors.push(SymExpr::Pow(Pow::new(Box::new(base), Box::new(exp)))),
+                _ => factors.push(SymExpr::Pow(Pow::new(base, exp))),
             }
         }
 
@@ -521,7 +525,11 @@ impl Product {
             .distribute()
         {
             SymExpr::Product(t) => match t.collect_factors() {
-                SymExpr::Product(p) => SymExpr::Product(p.order_factors().set_simplified(true)),
+                SymExpr::Product(p) => if p.factors.len() == 0 {
+                    SymExpr::Z(BigInt::one())
+                } else {
+                    SymExpr::Product(p.order_factors().set_simplified(true))
+                }
                 other => other.set_simplified(true)
             }
             SymExpr::Sum(s) => s.simplify(),
@@ -560,7 +568,9 @@ pub struct Pow {
 }
 
 impl Pow {
-    pub fn new(base: Box<SymExpr>, exp: Box<SymExpr>) -> Pow {
+    pub fn new(base: SymExpr, exp: SymExpr) -> Pow {
+        let base = Box::new(base);
+        let exp = Box::new(exp);
         Pow { base, exp, simplified: false }
     }
     pub fn set_simplified(self, simplified: bool) -> Pow {
@@ -576,18 +586,15 @@ impl Pow {
         }
     }
     fn simplify_children(self) -> Pow {
-        let base = Box::new(self.base.simplify());
-        let exp = Box::new(self.exp.simplify());
-        Pow::new(base, exp)
+        Pow::new(self.base.simplify(), self.exp.simplify())
     }
     fn flatten(self) -> Pow {
         match *self.base {
             SymExpr::Pow(p) => {
-                let base = Box::new(p.base.simplify());
-                let exp = Box::new(self.exp.mul(*p.exp).unwrap().simplify());
-                Pow::new(base, exp)
+                let exp = self.exp.mul(*p.exp).simplify();
+                Pow::new(p.base.simplify(), exp)
             }
-            base => Pow::new(Box::new(base), self.exp),
+            base => Pow::new(base, *self.exp),
         }
     }
     fn expand_or_eval(self) -> SymExpr {
@@ -633,7 +640,7 @@ impl Pow {
         match self.base.to_term(var)?{
             Term { coef, deg } => {
                 if deg == BigInt::ZERO {
-                    let coef = SymExpr::Pow(Pow::new(Box::new(coef), self.exp));
+                    let coef = SymExpr::Pow(Pow::new(coef, *self.exp));
                     Ok(Term::new(coef, deg))
                 }
                 else {
@@ -671,13 +678,10 @@ impl Term {
         Term { coef, deg }
     }
     pub fn mul(self, other: Term) -> Term {
-        Term::new(self.coef.mul(other.coef).unwrap(), self.deg + other.deg)
+        Term::new(self.coef.mul(other.coef), self.deg + other.deg)
     }
     pub fn mul_coef(self, c: SymExpr) -> Term {
-        let coef = match self.coef.mul(c) {
-            Ok(v) => v,
-            Err(_) => unreachable!(),
-        };
+        let coef = self.coef.mul(c);
         Term { coef: coef, deg: self.deg }
     }
     pub fn to_string(&self, var: &String) -> String {
@@ -727,11 +731,16 @@ impl Term {
     }
     pub fn pow(self, exp: u32) -> Term {
         let z = BigInt::from_u32(exp).unwrap();
-        let exp = Box::new(SymExpr::Z(z.clone()));
-        let coef = SymExpr::Pow(Pow::new(Box::new(self.coef), exp.clone()))
+        let exp = SymExpr::Z(z.clone());
+        let coef = SymExpr::Pow(Pow::new(self.coef, exp))
             .simplify();
         let deg = self.deg * z;
         Term::new(coef, deg)
+    }
+    pub fn to_tree(self, var: String) -> SymExpr {
+        let x = SymExpr::Symbol(var);
+        let xn = SymExpr::Pow(Pow::new(x, SymExpr::Z(self.deg)));
+        Product::new(vec![self.coef, xn]).simplify()
     }
 }
 
@@ -760,7 +769,7 @@ impl Polynomial {
             let coef = deg_coef
                 .entry(term.deg)
                 .or_insert(SymExpr::Z(BigInt::ZERO));
-            *coef = std::mem::take(coef).add(term.coef).unwrap();
+            *coef = std::mem::take(coef).add(term.coef);
         }
 
         let mut terms = Vec::new();
@@ -799,23 +808,23 @@ impl Polynomial {
             .collect::<Vec<_>>()
             .join(" + ")
     }
-    fn compatible(&self, other: &Polynomial) -> Result<(), String> {
-        if self.var == other.var {
-            Ok(())
-        } else {
-            Err(String::from("Polynomials must be in the same variable to perform operations on them."))
+    pub fn add(mut self, other: Polynomial) -> SymExpr {
+        if self.var != other.var {
+            return self.to_tree().add(other.to_tree());
         }
-    }
-    pub fn add(mut self, other: Polynomial) -> Result<Polynomial, String> {
-        self.compatible(&other)?;
+
         self.terms.reserve(other.terms.len());
         for term in other.terms {
             self.terms.push(term);
         }
-        Ok(self.simplify())
+
+        SymExpr::Polynomial(self.simplify())
     }
-    pub fn mul(self, other: Polynomial) -> Result<Polynomial, String> {
-        self.compatible(&other)?;
+    pub fn mul(self, other: Polynomial) -> SymExpr {
+        if self.var != other.var {
+            return self.to_tree().mul(other.to_tree());
+        }
+
         let mut terms = Vec::new();
         terms.reserve(self.terms.len() * other.terms.len());
         for a in &self.terms {
@@ -823,7 +832,7 @@ impl Polynomial {
                 terms.push(a.clone().mul(b.clone()))
             }
         }
-        Ok(Polynomial::new(self.var, terms))
+        SymExpr::Polynomial(Polynomial::new(self.var, terms))
     }
     fn partial_fact(x: u32, n: u32) -> BigInt {
         // computes x * (x - 1) * (x - 2) * ... * (x - n + 1)
@@ -879,11 +888,19 @@ impl Polynomial {
         let mut result = self.clone();
         for _ in 1..exp  {
             result = match result.mul(self.clone()) {
-                Ok(p) => p,
-                Err(_) => unreachable!(),
-            }
+                SymExpr::Polynomial(p) => p,
+                _ => unreachable!(),
+            };
         }
 
         result.simplify()
+    }
+    pub fn to_tree(self) -> SymExpr {
+        let terms = self.terms
+            .into_iter()
+            .map(|t| t.to_tree(self.var.clone()))
+            .collect::<Vec<SymExpr>>();
+
+        SymExpr::Sum(Sum::new(terms)).simplify()
     }
 }

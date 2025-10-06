@@ -42,7 +42,7 @@ impl<'a> Interpreter {
             _ => unreachable!(),
         }
     }
-    fn bin_sym(addr1: u64, addr2: u64, op: &Tok, h: &Heap) -> Result<Val, String> {
+    fn bin_sym(addr1: u64, addr2: u64, op: &Tok, h: &Heap) -> Val {
         // TODO improve performance
         let a = match h.get(addr1) {
             Some(HeapVal::Sym(s)) => s,
@@ -54,13 +54,13 @@ impl<'a> Interpreter {
         };
         use TokType::*;
         let expr = match op.t {
-            Plus => SymExpr::add(a, b)?,
-            Minus => SymExpr::add(a, Negate::negate_sym_expr(b)?)?,
-            Star => SymExpr::mul(a, b)?,
+            Plus => SymExpr::add(a, b),
+            Minus => SymExpr::add(a, Negate::negate_sym_expr(b)),
+            Star => SymExpr::mul(a, b),
             Slash => todo!(),
             _ => unreachable!(),
         };
-        Ok(Val::Sym(h.alloc(HeapVal::Sym(expr))))
+        Val::Sym(h.alloc(HeapVal::Sym(expr)))
     }
     fn binary(&self, b: &Binary) -> Result<Val, Error> {
         use TokType::*;
@@ -83,13 +83,11 @@ impl<'a> Interpreter {
                 }
                 (Val::Sym(a), Val::Sym(b)) =>{
                     result = Self::bin_sym(a, b, op, &self.heap)
-                        .map_err(|msg| Error::from(msg, op, op))?;
                 }
                 (Val::Sym(a), Val::Num(b))
                 | (Val::Num(b), Val::Sym(a)) => {
                     let b = self.heap.alloc(HeapVal::Sym(b.to_sym()));
                     result = Self::bin_sym(a, b, op, &self.heap)
-                        .map_err(|msg| Error::from(msg, op, op))?;
                 }
                 (a, b) => {
                     let msg = format!(
@@ -163,7 +161,7 @@ impl<'a> Interpreter {
                     HeapVal::Sym(s) => s,
                     _ => unreachable!(),
                 };
-                let pow = SymExpr::Pow(Pow::new(Box::new(a), Box::new(b))).simplify();
+                let pow = SymExpr::Pow(Pow::new(a, b)).simplify();
                 Ok(Val::Sym(self.heap.alloc(HeapVal::Sym(pow))))
             }
             (Val::Sym(a), Val::Num(b))
@@ -173,7 +171,7 @@ impl<'a> Interpreter {
                     _ => unreachable!(),
                 };
                 let b = b.to_sym();
-                let pow = SymExpr::Pow(Pow::new(Box::new(a), Box::new(b))).simplify();
+                let pow = SymExpr::Pow(Pow::new(a, b)).simplify();
                 Ok(Val::Sym(self.heap.alloc(HeapVal::Sym(pow))))
             }
             _ => {
