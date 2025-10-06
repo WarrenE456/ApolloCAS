@@ -2,7 +2,7 @@ pub extern crate num_bigint;
 pub extern crate num_traits;
 
 use num_bigint::BigInt;
-use num_traits::One;
+use num_traits::{One, FromPrimitive};
 
 use std::str::FromStr;
 use std::collections::HashMap;
@@ -410,7 +410,9 @@ impl Product {
                 (other, SymExpr::Sum(s)) => {
                     SymExpr::Sum(other.distribute(s))
                 }
-                (SymExpr::Polynomial
+                (SymExpr::Polynomial(a), SymExpr::Polynomial(b)) => {
+                    SymExpr::Polynomial(a.mul(b).unwrap()) // TODO error handling
+                }
                 (other1, other2) => {
                     let factors = vec![other1, other2];
                     SymExpr::Product(Product::new(factors).flatten())
@@ -594,6 +596,10 @@ impl Pow {
                 let exp = b.try_into().expect("Exponent too large.");
                 SymExpr::Z(a.pow(exp))
             }
+            (SymExpr::Polynomial(b), SymExpr::Z(p)) => {
+                let exp = p.try_into().expect("Exponent too large.");
+                SymExpr::Polynomial(b.clone().pow(exp).unwrap())    // TODO actual error handling
+            }
             (expr, SymExpr::Z(exp)) => {
                 let exp = exp.try_into().expect("Exponent too large.");
                 let factors = vec![expr.clone(); exp];
@@ -667,6 +673,13 @@ impl Term {
     pub fn mul(self, other: Term) -> Term {
         Term::new(self.coef.mul(other.coef).unwrap(), self.deg + other.deg)
     }
+    pub fn mul_coef(self, c: SymExpr) -> Term {
+        let coef = match self.coef.mul(c) {
+            Ok(v) => v,
+            Err(_) => unreachable!(),
+        };
+        Term { coef: coef, deg: self.deg }
+    }
     pub fn to_string(&self, var: &String) -> String {
         let mut s = String::new();
         match &self.coef {
@@ -712,6 +725,14 @@ impl Term {
             _ => false,
         }
     }
+    pub fn pow(self, exp: u32) -> Term {
+        let z = BigInt::from_u32(exp).unwrap();
+        let exp = Box::new(SymExpr::Z(z.clone()));
+        let coef = SymExpr::Pow(Pow::new(Box::new(self.coef), exp.clone()))
+            .simplify();
+        let deg = self.deg * z;
+        Term::new(coef, deg)
+    }
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -724,6 +745,11 @@ pub struct Polynomial {
 impl Polynomial {
     pub fn new(var: String, terms: Vec<Term>) -> Polynomial {
         Polynomial { var, terms, simplified: false }
+    }
+    pub fn one(var: String) -> Polynomial {
+        let terms = vec![Term::new(SymExpr::Z(BigInt::one()), BigInt::ZERO)];
+        let simplified = true;
+        return Polynomial { var, terms, simplified };
     }
     pub fn set_simplified(self, simplified: bool) -> Polynomial {
         Polynomial {var: self.var, terms: self.terms, simplified }
@@ -797,6 +823,66 @@ impl Polynomial {
                 terms.push(a.clone().mul(b.clone()))
             }
         }
-        Ok(Polynomial::new(self.var, terms).simplify())
+        Ok(Polynomial::new(self.var, terms))
+    }
+    fn partial_fact(x: u32, n: u32) -> BigInt {
+        // computes x * (x - 1) * (x - 2) * ... * (x - n + 1)
+        let mut result = BigInt::one();
+        for i in (x - n + 1)..=x {
+            result *= i;
+        }
+        result
+    }
+
+    fn fact(x: u32) -> BigInt {
+        // 0! = 1, 1! = 1, etc.
+        let mut result = BigInt::one();
+        for i in 1..=x {
+            result *= i;
+        }
+        result
+    }
+
+    fn n_choose_k(n: u32, k: u32) -> BigInt {
+        if k == 0 || k == n {
+            BigInt::one()
+        } else if k == 1 || k == n - 1 {
+            BigInt::from_u32(n).unwrap()
+        } else {
+            Self::partial_fact(n, k) / Self::fact(k)
+        }
+    }
+    pub fn binomial_expansion(var: String, a: Term, b: Term, deg: u32) -> Result<Polynomial, String> {
+        let mut terms = Vec::new();
+        for k in 0..=deg {
+            let a_part = a.clone().pow(deg - k);
+            let b_part = b.clone().pow(k);
+            let coef = SymExpr::Z(Self::n_choose_k(deg, k));
+            println!("deg: {}, k: {}, coef: {}", deg, k, coef.to_string());
+            let next_term = a_part.mul(b_part).mul_coef(coef);
+            terms.push(next_term);
+        }
+        Ok(Polynomial::new(var, terms).simplify())
+    }
+    pub fn pow(mut self, exp: u32) -> Result<Polynomial, String> {
+        if exp == 0 {
+            return Ok(Polynomial::one(self.var));
+        }
+        if self.terms.len() == 2 {
+            let a = std::mem::take(&mut self.terms[0]);
+            let b = std::mem::take(&mut self.terms[1]);
+
+            return Self::binomial_expansion(self.var, a, b, exp);
+        }
+
+        self = self.simplify();
+        let mut result = self.clone();
+        for _ in 1..exp  {
+            result = match result.mul(self.clone()) {
+                Ok(p) => p,
+                Err(_) => unreachable!(),
+            }
+        }
+        Ok(result.simplify())
     }
 }

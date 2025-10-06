@@ -241,7 +241,7 @@ impl<'a> Interpreter {
                             msg, line: op.line, col_start: op.col_start, col_end: op.col_end
                         });
                     } else {
-                        return Ok(Val::Bool(false));
+                        false
                     }
                 }
             };

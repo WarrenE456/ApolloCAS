@@ -436,6 +436,17 @@ impl Type {
                 other => Err(Self::gen_type_error(&Type::Int, &other.get_type(h))),
             },
             Self::Sym(SymT::Z) => match v{
+                Val::Sym(addr) => {
+                    match h.type_sym(addr) {
+                        SymT::Z => Ok(v),
+
+                        // TODO handle polynomials
+                        t => Err(format!(
+                            "Cannot convert non-Z symbolic expression of type '{}' to Z.",
+                            t.to_string()
+                        ))
+                    }
+                }
                 Val::Num(Num::Int(n)) => Ok(Val::Sym(h.alloc(HeapVal::Sym(SymExpr::Z(n.to_bigint().unwrap()))))),
                 other => Err(Self::gen_type_error(&Type::Sym(SymT::Z), &other.get_type(h)))
             }
