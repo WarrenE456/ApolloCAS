@@ -268,6 +268,24 @@ impl SymExpr {
     pub fn to_val(self, h: &Heap) -> Val {
         Val::Sym(h.alloc(HeapVal::Sym(self)))
     }
+    pub fn depends_on(&self, target: &String) -> bool {
+        let depends_on_aux = |exprs: &Vec<SymExpr>| {
+            for expr in exprs.iter() {
+                if expr.depends_on(target) {
+                    return true;
+                }
+            }
+            false
+        };
+        match self {
+            SymExpr::Symbol(identifier) => identifier == target,
+            SymExpr::Z(_) => false,
+            SymExpr::Sum(s) => depends_on_aux(&s.terms),
+            SymExpr::Product(s) => depends_on_aux(&s.factors),
+            SymExpr::Pow(p) => p.base.depends_on(target) || p.exp.depends_on(target),
+            SymExpr::Polynomial(p) => p.depends_on(target),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -637,31 +655,27 @@ impl Pow {
         }
     }
     pub fn to_term(self, var: &String) -> Result<Term, String> {
-        match self.base.to_term(var)?{
-            Term { coef, deg } => {
-                if deg == BigInt::ZERO {
-                    let coef = SymExpr::Pow(Pow::new(coef, *self.exp));
-                    Ok(Term::new(coef, deg))
+        match (self.base.depends_on(var), self.exp.depends_on(var)) {
+            (_, true) => {
+                let msg = format!(
+                    "In polynomial in '{}', cannot raise value to the power of '{}'.",
+                    var, var
+                );
+                Err(msg)
+            }
+            (true, false) => {
+                if let SymExpr::Z(z) = *self.exp {
+                    Ok(Term::new(*self.base, z))
+                } else {
+                    let msg = format!(
+                        "In polynomial in '{}', '{}' must be raised to an integer exponent.",
+                        var, var
+                    );
+                    Err(msg)
                 }
-                else {
-                    if let SymExpr::Z(n) = *self.exp {
-                        if n > BigInt::ZERO {
-                            Ok(Term::new(coef, deg * n))
-                        }
-                        else {
-                            Err(format!(
-                                "Attempt to raise '{}' to negative integer '{}' in symexpr to polynomial conversion.",
-                                var, n
-                            ))
-                        }
-                    }
-                    else {
-                        Err(format!(
-                            "Attempt to raise '{}' to non-integer exponent '{}' in symexpr to polynomial conversion.",
-                            var, self.exp.to_string()
-                        ))
-                    }
-                }
+            }
+            (false, false) => {
+                Ok(Term::new(SymExpr::Pow(self), BigInt::ZERO))
             }
         }
     }
@@ -902,5 +916,13 @@ impl Polynomial {
             .collect::<Vec<SymExpr>>();
 
         SymExpr::Sum(Sum::new(terms)).simplify()
+    }
+    pub fn depends_on(&self, target: &String) -> bool {
+        for term in self.terms.iter() {
+            if term.coef.depends_on(target) {
+                return true;
+            }
+        }
+        false
     }
 }

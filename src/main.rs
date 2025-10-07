@@ -15,22 +15,25 @@ use runtime::Interpreter;
 use mem::heap::Heap;
 use mem::gc::GC;
 
-/* TODO
+/* TODO FINAL LIST CAS
+* 
+* gcd of polynomail
+* multivariable polynomial
+* gcd multivariate polynomials
+* rational numbers
+* rational functions
+* equation solving
+* ln
+* dirivatives
+* trig functions
 *
-* poly((x+1)^a, x)
-* ensure polynomials are not in the coef of polynomials, probably by conversion
-* type casing fix
-* make fn types manditory
-* classes
+* TODO FINAL LIST PROGRAMMING LANGUAGE
+*
+* structs
+* modules
+* pipe
 * ignore newlines inside parenthesis
 * explicit casting
-* polymorphic types
-* fn casting
-* special characters in strings
-* classes
-* <c-d> to interupt
-* exp for sym non sym
-* better expansion algorithm
 *
 */
 
