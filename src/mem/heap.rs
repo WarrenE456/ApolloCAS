@@ -118,7 +118,7 @@ impl Heap {
     pub fn mark(&self, addr: u64) {
         if !self.marks.read().unwrap().get(&addr).unwrap() {
             self.marks.write().unwrap().get_mut(&addr).map(|v| *v = true);
-            self.mem.try_read().unwrap().get(&addr).map(|v| match v {
+            self.mem.read().unwrap().get(&addr).map(|v| match v {
                 HeapVal::Arr(arr) => {
                     arr.iter().for_each(|v| match v {
                         Val::Arr(v_addr) => self.mark(*v_addr),
@@ -151,10 +151,10 @@ impl Heap {
         self.hidden_ref.write().unwrap().remove(&addr);
     }
     pub fn get(&self, id: u64) -> Option<HeapVal> {
-        self.mem.try_read().unwrap().get(&id).map(|v| (*v).clone())
+        self.mem.read().unwrap().get(&id).map(|v| (*v).clone())
     }
     pub fn get_at(&self, id: u64, idx: usize) -> Option<Val> {
-        self.mem.try_read().unwrap().get(&id).map(|v| match v {
+        self.mem.read().unwrap().get(&id).map(|v| match v {
             HeapVal::Arr(arr) => Some(arr[idx].clone()),
             HeapVal::Str(s) => Some(Val::Char(s[idx])),
             _ => None
@@ -197,7 +197,7 @@ impl Heap {
         }).unwrap_or(None)
     }
     pub fn next_iter(&self, addr: u64) -> Option<Val> {
-        self.mem.try_read().unwrap().get(&addr).map(|v| match v {
+        self.mem.read().unwrap().get(&addr).map(|v| match v {
             HeapVal::Iter(iter) => Some(iter.next(self)),
             _ => None,
         }).flatten().unwrap_or(None)
@@ -214,7 +214,7 @@ impl Heap {
         }
     }
     pub fn to_string(&self, addr: u64) -> String {
-        let reader = self.mem.try_read().unwrap();
+        let reader = self.mem.read().unwrap();
         let v = match reader.get(&addr) {
             Some(v) => v,
             None => return String::from("<null>"),
@@ -242,7 +242,7 @@ impl Heap {
         }
     }
     pub fn len(&self, id: u64) -> usize {
-        let reader = self.mem.try_read().unwrap();
+        let reader = self.mem.read().unwrap();
         let v = reader.get(&id).unwrap();
         match v {
             HeapVal::Str(s) => s.len(),
@@ -266,7 +266,7 @@ impl Heap {
     }
     pub fn call(&self, id: u64, c: &Call, i: &Interpreter) -> Result<Val, Error> {
         let f = {
-            let reader = self.mem.try_read().unwrap();
+            let reader = self.mem.read().unwrap();
             let v = reader.get(&id).unwrap();
             match v {
                 HeapVal::Fn(f) => Arc::clone(f),
@@ -276,7 +276,7 @@ impl Heap {
         f.call(c, i)
     }
     pub fn type_fn(&self, id: u64) -> Type {
-        let reader = self.mem.try_read().unwrap();
+        let reader = self.mem.read().unwrap();
         let v = reader.get(&id).unwrap();
         match v {
             HeapVal::Fn(f) => {
@@ -287,7 +287,7 @@ impl Heap {
         }
     }
     pub fn type_sym(&self, id: u64) -> SymT {
-        let reader = self.mem.try_read().unwrap();
+        let reader = self.mem.read().unwrap();
         let v = reader.get(&id).unwrap();
         match v {
             HeapVal::Sym(s) => match s {
@@ -298,6 +298,18 @@ impl Heap {
             },
             _ => unreachable!()
         }
+    }
+    pub fn cmp_sym(&self, addr1: u64, addr2: u64) -> bool {
+        let reader = self.mem.read().unwrap();
+        let v1 = match reader.get(&addr1).unwrap() {
+            HeapVal::Sym(s) => s,
+            _ => unreachable!(),
+        };
+        let v2 = match reader.get(&addr2).unwrap() {
+            HeapVal::Sym(s) => s,
+            _ => unreachable!(),
+        };
+        v1 == v2
     }
     pub fn alloc(&self, val: HeapVal) -> u64 {
         let addr = self.counter.load(SeqCst);

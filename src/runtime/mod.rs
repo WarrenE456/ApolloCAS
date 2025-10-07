@@ -229,6 +229,11 @@ impl<'a> Interpreter {
                         _ => unreachable!(),
                     }
                 }
+                (Val::Sym(a), Val::Sym(b)) => match op.t {
+                    TokType::Equal => self.heap.cmp_sym(a, *b),
+                    TokType::BangEqual => !self.heap.cmp_sym(a, *b),
+                    _ => todo!(),
+                }
                 (a, b) => {
                     if a.get_type(&self.heap) == b.get_type(&self.heap) {
                         let msg = format!(
