@@ -1,6 +1,6 @@
 # ApolloCAS
 
-A computer algebra system (CAS) built into a custom scripting language. Please note that this project is still in development. The project is on a hiatus right now, as I am writing my college apps, but it will be back in development by early November!
+A computer algebra system (CAS) built into a custom scripting language. Please note that this project is still in development, and on a hiatus at the momement, as I am in the process of applying to college; however, don't worry, it will be back in development by early November!
 
 ## Build and Run
 
