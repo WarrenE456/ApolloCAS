@@ -138,7 +138,7 @@ Memory is managed via a garbage collector. This means there is no need to call f
 Types like Arr and Sym are stored by reference and live in the "heap" and are managed by the garbage collector.
 Primitives like Bool and Int are stored locally.
 
-## Part 2: The Computer Algebra System
+## Part 2: ApolloCAS the Computer Algebra System
 
 This is the much less mature part of ApolloCAS, and much work is still to be done, but here are the features thus far.
 
