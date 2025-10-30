@@ -147,7 +147,7 @@ This is the much less mature part of ApolloCAS, and much work is still to be don
 There are two ways of initializing symbolic expressions, through type annotations or a symbolic annotation.
 ```
 # Type annotation
-let a: Sym = x = 1
+let a: Sym = x + 1
 # Symbolic annotation
 let b = $x + 1
 ```
